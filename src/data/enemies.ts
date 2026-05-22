@@ -45,6 +45,28 @@ export const ENEMY_TEMPLATES: EnemyTemplate[] = [
     aiPattern: 'charge',
     attackCooldown: 500, // Phát nổ lập tức khi tiếp cận
     color: '#dc2626' // Đỏ rực
+  },
+  {
+    id: 'melee_skeleton',
+    name: 'Chiến Binh Xương',
+    maxHp: 15,
+    speed: 2.5,
+    radius: 14,
+    damage: 3,
+    aiPattern: 'chase',
+    attackCooldown: 800,
+    color: '#94a3b8' // Xám nhạt
+  },
+  {
+    id: 'necromancer',
+    name: 'Tử Linh Sư',
+    maxHp: 25,
+    speed: 1.2,
+    radius: 18,
+    damage: 0, // Không gây sát thương trực tiếp
+    aiPattern: 'summon',
+    attackCooldown: 15000, // 15 giây gọi đệ 1 lần
+    color: '#6b21a8' // Tím đậm
   }
 ];
 

@@ -1,14 +1,15 @@
 import { create } from 'zustand';
 import type { 
   Entity, Projectile, VFXParticle, DamageNumber, 
-  Chest, Shrine, ShopItem, GoldPickup, HealthPickup,
-  DestructibleBarrel, ExplosiveBarrel, Portal, GroundWeapon
+  Chest, Shrine, ShopItem, GoldPickup, HealthPickup, ItemPickup,
+  DestructibleBarrel, ExplosiveBarrel, Portal, GroundWeapon, SpikeTrap
 } from '../types/interfaces';
 import { WEAPONS } from '../data/weapons';
 
 interface EntityState {
   player: Entity | null;
   enemies: Entity[];
+  allies: Entity[];
   projectiles: Projectile[];
   particles: VFXParticle[];
   damageNumbers: DamageNumber[];
@@ -18,6 +19,7 @@ interface EntityState {
 
   goldPickups: GoldPickup[];
   healthPickups: HealthPickup[];
+  itemPickups: ItemPickup[];
   destructibleBarrels: DestructibleBarrel[];
   explosiveBarrels: ExplosiveBarrel[];
   groundWeapons: GroundWeapon[];
@@ -31,6 +33,11 @@ interface EntityState {
   addEnemy: (enemy: Entity) => void;
   updateEnemy: (id: string, updater: Partial<Entity> | ((e: Entity) => Entity)) => void;
   removeEnemy: (id: string) => void;
+  
+  addAlly: (ally: Entity) => void;
+  updateAlly: (id: string, updater: Partial<Entity> | ((e: Entity) => Entity)) => void;
+  removeAlly: (id: string) => void;
+  setAllies: (allies: Entity[]) => void;
   addProjectile: (p: Projectile) => void;
   setProjectiles: (p: Projectile[]) => void;
   addParticle: (p: VFXParticle) => void;
@@ -43,6 +50,9 @@ interface EntityState {
 
   addHealthPickup: (h: HealthPickup) => void;
   removeHealthPickup: (id: string) => void;
+
+  addItemPickup: (i: ItemPickup) => void;
+  removeItemPickup: (id: string) => void;
   
   addDestructibleBarrel: (b: DestructibleBarrel) => void;
   removeDestructibleBarrel: (id: string) => void;
@@ -71,6 +81,7 @@ interface EntityState {
 export const useEntityStore = create<EntityState>((set) => ({
   player: null,
   enemies: [],
+  allies: [],
   projectiles: [],
   particles: [],
   damageNumbers: [],
@@ -80,6 +91,7 @@ export const useEntityStore = create<EntityState>((set) => ({
 
   goldPickups: [],
   healthPickups: [],
+  itemPickups: [],
   destructibleBarrels: [],
   explosiveBarrels: [],
   groundWeapons: [],
@@ -110,6 +122,23 @@ export const useEntityStore = create<EntityState>((set) => ({
     enemies: state.enemies.filter(e => e.id !== id)
   })),
 
+  addAlly: (ally) => set((state) => ({ allies: [...state.allies, ally] })),
+  
+  updateAlly: (id, updater) => set((state) => ({
+    allies: state.allies.map(a => {
+      if (a.id === id) {
+        return typeof updater === 'function' ? updater(a) : { ...a, ...updater };
+      }
+      return a;
+    })
+  })),
+  
+  removeAlly: (id) => set((state) => ({
+    allies: state.allies.filter(a => a.id !== id)
+  })),
+
+  setAllies: (allies) => set({ allies }),
+
   addProjectile: (p) => set((state) => ({ projectiles: [...state.projectiles, p] })),
   
   setProjectiles: (projectiles) => set({ projectiles }),
@@ -133,6 +162,12 @@ export const useEntityStore = create<EntityState>((set) => ({
   
   removeHealthPickup: (id) => set((state) => ({
     healthPickups: state.healthPickups.filter(h => h.id !== id)
+  })),
+
+  addItemPickup: (i) => set((state) => ({ itemPickups: [...state.itemPickups, i] })),
+  
+  removeItemPickup: (id) => set((state) => ({
+    itemPickups: state.itemPickups.filter(i => i.id !== id)
   })),
 
   addDestructibleBarrel: (b) => set((state) => ({ destructibleBarrels: [...state.destructibleBarrels, b] })),
@@ -180,15 +215,16 @@ export const useEntityStore = create<EntityState>((set) => ({
 
   clearRoomEntities: () => set({
     enemies: [],
+    allies: [],
     projectiles: [],
     particles: [],
     damageNumbers: [],
     chests: [],
     shrines: [],
     shopItems: [],
-    manaPickups: [],
     goldPickups: [],
     healthPickups: [],
+    itemPickups: [],
     destructibleBarrels: [],
     explosiveBarrels: [],
     groundWeapons: [],
@@ -214,8 +250,8 @@ export const useEntityStore = create<EntityState>((set) => ({
       // Đặt sẵn một rương chứa vũ khí khởi đầu xịn hơn
       chests.push({
         id: 'start_chest',
-        x: 450,
-        y: 450,
+        x: getRandomCoord(400, 1600),
+        y: getRandomCoord(400, 1100),
         radius: 20,
         type: 'weapon',
         opened: false,
@@ -224,8 +260,8 @@ export const useEntityStore = create<EntityState>((set) => ({
       // Đền thờ phục hồi miễn phí tại điểm bắt đầu
       shrines.push({
         id: 'start_shrine',
-        x: 300,
-        y: 200,
+        x: getRandomCoord(200, 1800),
+        y: getRandomCoord(200, 1300),
         radius: 20,
         type: 'health',
         used: false
@@ -233,15 +269,15 @@ export const useEntityStore = create<EntityState>((set) => ({
       // Spawn hai vũ khí Súng và Kiếm trên sàn ở phòng khởi đầu
       groundWeapons.push({
         id: 'start_gun',
-        x: 350,
-        y: 450,
+        x: getRandomCoord(400, 1600),
+        y: getRandomCoord(400, 1100),
         radius: 15,
         weapon: WEAPONS.find(w => w.id === 'assault_rifle')!
       });
       groundWeapons.push({
         id: 'start_sword',
-        x: 550,
-        y: 450,
+        x: getRandomCoord(400, 1600),
+        y: getRandomCoord(400, 1100),
         radius: 15,
         weapon: WEAPONS.find(w => w.id === 'broadsword')!
       });
@@ -253,8 +289,8 @@ export const useEntityStore = create<EntityState>((set) => ({
       
       chests.push({
         id: 'chest_room_loot',
-        x: 450,
-        y: 350,
+        x: getRandomCoord(800, 1200),
+        y: getRandomCoord(600, 900),
         radius: 22,
         type: 'weapon',
         opened: false,
@@ -265,8 +301,8 @@ export const useEntityStore = create<EntityState>((set) => ({
       for (let i = 0; i < 4; i++) {
         destructibleBarrels.push({
           id: `barrel_chest_${i}`,
-          x: getRandomCoord(100, 800),
-          y: getRandomCoord(100, 600),
+          x: getRandomCoord(200, 1800),
+          y: getRandomCoord(200, 1300),
           radius: 18,
           hp: 1,
           maxHp: 1
@@ -278,10 +314,13 @@ export const useEntityStore = create<EntityState>((set) => ({
       const weaponOptions = WEAPONS.filter(w => w.id !== 'rusty_pistol');
       const shopWeapons = [...weaponOptions].sort(() => Math.random() - 0.5);
 
+      const centerX = 1000;
+      const centerY = 750;
+
       shopItems.push({
         id: 'shop_hp',
-        x: 300,
-        y: 350,
+        x: centerX - 150,
+        y: centerY,
         radius: 20,
         type: 'hp_potion',
         cost: 40,
@@ -289,8 +328,8 @@ export const useEntityStore = create<EntityState>((set) => ({
       });
       shopItems.push({
         id: 'shop_mp',
-        x: 450,
-        y: 350,
+        x: centerX,
+        y: centerY,
         radius: 20,
         type: 'mp_potion',
         cost: 20,
@@ -298,8 +337,8 @@ export const useEntityStore = create<EntityState>((set) => ({
       });
       shopItems.push({
         id: 'shop_weapon',
-        x: 600,
-        y: 350,
+        x: centerX + 150,
+        y: centerY,
         radius: 20,
         type: 'weapon',
         cost: 70,

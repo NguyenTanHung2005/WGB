@@ -25,8 +25,8 @@ export interface CharacterClass {
 }
 
 // --- ENTITY ---
-export type EntityType = 'player' | 'enemy' | 'boss';
-export type AIPattern = 'chase' | 'shoot' | 'charge';
+export type EntityType = 'player' | 'enemy' | 'boss' | 'ally';
+export type AIPattern = 'chase' | 'shoot' | 'charge' | 'summon';
 export type AnimationState = 'idle' | 'walk' | 'attack' | 'roll' | 'dead';
 
 export interface Entity {
@@ -49,12 +49,13 @@ export interface Entity {
   lastSkillUsedTime?: number; // timestamp ms
   skillActiveUntil?: number;  // timestamp ms khi skill hết hiệu lực
   classId?: string;       // Chỉ player
-  aiPattern?: AIPattern;  // Chỉ enemy
-  templateId?: string;    // Dùng cho enemy để vẽ hình
+  aiPattern?: AIPattern;  // Chỉ enemy/ally
+  templateId?: string;    // Dùng cho enemy/ally để vẽ hình
   lastAIShootTime?: number; // Cho quái bắn xa
-  damage?: number;        // Chỉ enemy/boss mới có, hoặc sát thương va chạm
+  damage?: number;        // Chỉ enemy/boss/ally mới có, hoặc sát thương va chạm
   color?: string;         // Vẽ tạm hoặc màu quái
   statusEffects: string[];
+  expireTime?: number;    // timestamp ms khi entity này tự biến mất (vd: Sói tinh linh)
   
   // Animation & Physics
   animState?: AnimationState;
@@ -81,6 +82,8 @@ export interface Projectile {
   color: string;
   lifespan: number;       // Thời gian tồn tại (ms)
   createdAt: number;
+  piercing?: boolean;     // Có xuyên thấu không?
+  piercedEntities?: string[]; // Danh sách các ID đã xuyên qua
 }
 
 // --- ROOM ---
@@ -138,6 +141,7 @@ export interface DamageNumber {
   isCrit: boolean;
   createdAt: number;
   lifespan: number;
+  text?: string;
 }
 
 export interface ExplosiveBarrel {
@@ -210,6 +214,16 @@ export interface GoldPickup {
   y: number;
   radius: number;
   amount: number;
+}
+
+export type ItemType = 'golden_apple' | 'wind_boots' | 'ring_of_power' | 'energy_shield';
+
+export interface ItemPickup {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  itemType: ItemType;
 }
 
 // --- GROUND WEAPON ---

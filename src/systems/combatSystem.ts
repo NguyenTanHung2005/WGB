@@ -2,7 +2,7 @@ import { useEntityStore } from '../store/entityStore';
 import type { Entity } from '../types/interfaces';
 
 export function runCombatSystem(_delta: number) {
-  const { player, updatePlayer, enemies, updateEnemy } = useEntityStore.getState();
+  const { player, updatePlayer, enemies, updateEnemy, addDamageNumber, addParticle } = useEntityStore.getState();
   const currentTime = performance.now();
 
   if (!player) return;
@@ -26,7 +26,8 @@ export function runCombatSystem(_delta: number) {
   // --- 2. CẬP NHẬT TRẠNG THÁI SKILL HẾT HIỆU LỰC ---
   if (player.skillActiveUntil && currentTime >= player.skillActiveUntil) {
     updatePlayer({
-      skillActiveUntil: undefined
+      skillActiveUntil: undefined,
+      ...({ isWhirlwind: false, isRolling: false } as any)
     });
   }
 
@@ -55,6 +56,82 @@ export function runCombatSystem(_delta: number) {
       }
     }
   });
+
+  // --- 4. KỸ NĂNG BERSERKER (WHIRLWIND) ---
+  if ((player as any).isWhirlwind && player.skillActiveUntil && currentTime < player.skillActiveUntil) {
+    const lastWhirlwindTick = (player as any).lastWhirlwindTick || 0;
+    if (currentTime - lastWhirlwindTick >= 150) { // Mỗi 150ms gây sát thương
+      updatePlayer({ ...({ lastWhirlwindTick: currentTime } as any) });
+      
+      const wwRadius = player.radius + 40; // Phạm vi xoay kiếm
+
+      enemies.forEach(e => {
+        if (e.hp <= 0) return;
+        const dx = e.x - player.x;
+        const dy = e.y - player.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist <= wwRadius + e.radius) {
+          const wwDmg = 8;
+          const nextHp = Math.max(0, e.hp - wwDmg);
+          const pushAngle = Math.atan2(dy, dx);
+          
+          updateEnemy(e.id, {
+            hp: nextHp,
+            vx: Math.cos(pushAngle) * 5,
+            vy: Math.sin(pushAngle) * 5
+          });
+
+          addDamageNumber({
+            id: `ww_dmg_${Date.now()}_${e.id}_${Math.random()}`,
+            x: e.x,
+            y: e.y - 15,
+            value: wwDmg,
+            color: '#ef4444',
+            isCrit: true,
+            createdAt: currentTime,
+            lifespan: 500
+          });
+
+          // Tia máu
+          for (let k = 0; k < 3; k++) {
+            addParticle({
+              id: `ww_blood_${Date.now()}_${e.id}_${k}`,
+              x: e.x,
+              y: e.y,
+              vx: Math.cos(pushAngle) * 3 + (Math.random() - 0.5) * 2,
+              vy: Math.sin(pushAngle) * 3 + (Math.random() - 0.5) * 2,
+              radius: 2,
+              color: '#dc2626',
+              alpha: 0.8,
+              decay: 0.05,
+              createdAt: currentTime,
+              lifespan: 200
+            });
+          }
+        }
+      });
+
+      // Tạo vết chém xoáy tròn (Visual effect) xung quanh player
+      for (let k = 0; k < 5; k++) {
+        const randAngle = Math.random() * Math.PI * 2;
+        const distFromCenter = Math.random() * wwRadius;
+        addParticle({
+          id: `ww_slash_${Date.now()}_${k}`,
+          x: player.x + Math.cos(randAngle) * distFromCenter,
+          y: player.y + Math.sin(randAngle) * distFromCenter,
+          vx: Math.cos(randAngle + Math.PI / 2) * 2, // Vận tốc xoay tròn
+          vy: Math.sin(randAngle + Math.PI / 2) * 2,
+          radius: 3 + Math.random() * 2,
+          color: '#f87171',
+          alpha: 0.7,
+          decay: 0.1,
+          createdAt: currentTime,
+          lifespan: 150
+        });
+      }
+    }
+  }
 }
 
 // --- HÀM KÍCH HOẠT TẤN CÔNG (BẮN SÚNG / CẬN CHIẾN) ---
@@ -156,12 +233,12 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
         if (Math.abs(angleDiff) <= Math.PI / 3) {
           // Trúng đòn!
           const nextHp = Math.max(0, enemy.hp - finalDamage);
-          updateEnemy(enemy.id, { 
-            hp: nextHp,
-            // Đẩy lùi quái
-            vx: Math.cos(enemyAngle) * 4,
-            vy: Math.sin(enemyAngle) * 4
-          });
+          const updateData: Partial<Entity> = { hp: nextHp };
+          if (enemy.type !== 'boss') {
+            updateData.vx = Math.cos(enemyAngle) * 4;
+            updateData.vy = Math.sin(enemyAngle) * 4;
+          }
+          updateEnemy(enemy.id, updateData);
 
           // Hiển thị số sát thương
           addDamageNumber({
@@ -331,7 +408,7 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
 
 // --- HÀM KÍCH HOẠT KỸ NĂNG ĐẶC BIỆT CỦA NHÂN VẬT (CLASS SKILL) ---
 export function triggerPlayerSkill() {
-  const { player, updatePlayer, enemies, updateEnemy, addParticle, addDamageNumber, setCameraShake } = useEntityStore.getState();
+  const { player, updatePlayer, enemies, updateEnemy, addParticle, addDamageNumber, setCameraShake, addProjectile } = useEntityStore.getState();
   if (!player) return;
 
   const currentTime = performance.now();
@@ -509,5 +586,229 @@ export function triggerPlayerSkill() {
         });
       }
     });
+  }
+  else if (player.id === 'summoner') {
+    // --- SKILL SUMMONER: Gọi Sói Tinh Linh ---
+    const { addAlly } = useEntityStore.getState();
+    setCameraShake(3);
+
+    for (let i = 0; i < 2; i++) {
+      const offsetAngle = Math.PI + (i === 0 ? -Math.PI / 4 : Math.PI / 4);
+      const spawnX = player.x + Math.cos(offsetAngle) * 30;
+      const spawnY = player.y + Math.sin(offsetAngle) * 30;
+
+      addAlly({
+        id: `spirit_wolf_${Date.now()}_${i}`,
+        type: 'ally',
+        x: spawnX,
+        y: spawnY,
+        vx: 0,
+        vy: 0,
+        radius: 12,
+        hp: 1, // Sói tinh linh không có máu, hoặc vô địch (dùng thời gian tồn tại)
+        maxHp: 1,
+        speed: 3.5,
+        angle: 0,
+        aiPattern: 'chase',
+        templateId: 'spirit_wolf',
+        damage: 5,
+        color: 'rgba(45, 212, 191, 0.6)', // Teal transparent
+        statusEffects: [],
+        expireTime: currentTime + 15000 // Tồn tại 15 giây
+      });
+
+      // Hiệu ứng triệu hồi
+      for (let k = 0; k < 10; k++) {
+        addParticle({
+          id: `summon_spark_${Date.now()}_${i}_${k}`,
+          x: spawnX,
+          y: spawnY,
+          vx: (Math.random() - 0.5) * 4,
+          vy: (Math.random() - 0.5) * 4,
+          radius: 2 + Math.random() * 2,
+          color: '#2dd4bf', // Teal 400
+          alpha: 1.0,
+          decay: 0.05,
+          createdAt: currentTime,
+          lifespan: 400
+        });
+      }
+    }
+  }
+  else if (player.id === 'archer') {
+    // --- SKILL ARCHER: Piercing Arrow ---
+    setCameraShake(3);
+    const angle = player.angle;
+    const speed = 12; // Tốc độ rất nhanh
+    
+    addProjectile({
+      id: `piercing_arrow_${Date.now()}`,
+      owner: 'player',
+      x: player.x,
+      y: player.y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      radius: 6,
+      damage: 15,
+      color: '#38bdf8', // Xanh dương sáng
+      lifespan: 1500,
+      createdAt: currentTime,
+      piercing: true,
+      piercedEntities: []
+    });
+
+    for (let k = 0; k < 8; k++) {
+      addParticle({
+        id: `arrow_spark_${Date.now()}_${k}`,
+        x: player.x,
+        y: player.y,
+        vx: Math.cos(angle) * 5 + (Math.random() - 0.5) * 2,
+        vy: Math.sin(angle) * 5 + (Math.random() - 0.5) * 2,
+        radius: 3,
+        color: '#7dd3fc',
+        alpha: 1.0,
+        decay: 0.05,
+        createdAt: currentTime,
+        lifespan: 300
+      });
+    }
+  }
+  else if (player.id === 'paladin') {
+    // --- SKILL PALADIN: Holy Nova ---
+    setCameraShake(6);
+    
+    // 1. Hồi máu và giáp
+    const nextHp = Math.min(player.maxHp, player.hp + 2);
+    const nextShield = Math.min(player.maxShield || 0, (player.shield || 0) + 2);
+    updatePlayer({ hp: nextHp, shield: nextShield });
+
+    addDamageNumber({
+      id: `pala_heal_${Date.now()}`,
+      x: player.x,
+      y: player.y - 30,
+      value: 0,
+      text: '+2 HP/SHIELD',
+      color: '#fbbf24',
+      isCrit: true,
+      createdAt: currentTime,
+      lifespan: 1500
+    } as any);
+
+    // 2. Sát thương AoE và đẩy lùi
+    const radius = 150;
+    enemies.forEach(e => {
+      if (e.hp <= 0) return;
+      const dx = e.x - player.x;
+      const dy = e.y - player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      if (dist <= radius + e.radius) {
+        const nextHpEnemy = Math.max(0, e.hp - 15);
+        const angle = Math.atan2(dy, dx);
+        
+        updateEnemy(e.id, {
+          hp: nextHpEnemy,
+          vx: Math.cos(angle) * 8, // Đẩy lùi rất mạnh
+          vy: Math.sin(angle) * 8,
+          statusEffects: [...e.statusEffects.filter(eff => eff !== 'stunned'), 'stunned'],
+          ...({ stunUntil: currentTime + 1000 } as any)
+        });
+
+        addDamageNumber({
+          id: `holy_dmg_${Date.now()}_${e.id}`,
+          x: e.x,
+          y: e.y - 15,
+          value: 15,
+          color: '#fef3c7',
+          isCrit: false,
+          createdAt: currentTime,
+          lifespan: 600
+        });
+      }
+    });
+
+    // 3. Hiệu ứng hạt ánh sáng nổ tung
+    for (let k = 0; k < 30; k++) {
+      const angle = (k / 30) * Math.PI * 2;
+      addParticle({
+        id: `holy_nova_${Date.now()}_${k}`,
+        x: player.x,
+        y: player.y,
+        vx: Math.cos(angle) * 6,
+        vy: Math.sin(angle) * 6,
+        radius: 4,
+        color: '#fbbf24',
+        alpha: 1.0,
+        decay: 0.03,
+        createdAt: currentTime,
+        lifespan: 600
+      });
+    }
+  }
+  else if (player.id === 'berserker') {
+    // --- SKILL BERSERKER: Whirlwind ---
+    setCameraShake(2);
+    
+    updatePlayer({
+      skillActiveUntil: currentTime + 4000, // 4 giây xoay
+      ...({ isWhirlwind: true } as any)
+    });
+
+    // Bụi và hạt máu nổi giận
+    for (let k = 0; k < 15; k++) {
+      addParticle({
+        id: `rage_spark_${Date.now()}_${k}`,
+        x: player.x,
+        y: player.y,
+        vx: (Math.random() - 0.5) * 4,
+        vy: (Math.random() - 0.5) * 4,
+        radius: 3,
+        color: '#ef4444',
+        alpha: 1.0,
+        decay: 0.04,
+        createdAt: currentTime,
+        lifespan: 500
+      });
+    }
+  }
+  else if (player.id === 'ninja') {
+    // --- SKILL NINJA: Shuriken Nova ---
+    setCameraShake(3);
+    
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const speed = 10;
+      
+      addProjectile({
+        id: `shuriken_${Date.now()}_${i}`,
+        owner: 'player',
+        x: player.x,
+        y: player.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: 5,
+        damage: 12,
+        color: '#94a3b8', // Xám kim loại
+        lifespan: 800,
+        createdAt: currentTime,
+        piercing: true,
+        piercedEntities: []
+      });
+
+      // Hiệu ứng phóng phi tiêu
+      addParticle({
+        id: `shuriken_spark_${Date.now()}_${i}`,
+        x: player.x + Math.cos(angle) * 10,
+        y: player.y + Math.sin(angle) * 10,
+        vx: Math.cos(angle) * 2,
+        vy: Math.sin(angle) * 2,
+        radius: 2,
+        color: '#cbd5e1',
+        alpha: 1.0,
+        decay: 0.05,
+        createdAt: currentTime,
+        lifespan: 200
+      });
+    }
   }
 }

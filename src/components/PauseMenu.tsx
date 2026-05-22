@@ -25,7 +25,7 @@ export const PauseMenu: React.FC = () => {
           </div>
           <div className="pause-guide-grid">
             <div><span className="pause-key">W A S D</span> Di chuyển</div>
-            <div><span className="pause-key">Chuột Trái</span> Tấn công</div>
+            <div><span className="pause-key">Chuột</span> Tự động nhắm đánh</div>
             <div><span className="pause-key">E / Chuột Phải</span> Dùng Skill</div>
             <div><span className="pause-key">Q / Space</span> Đổi vũ khí</div>
             <div className="full-width"><span className="pause-key">F</span> Tương tác (Mở rương, nhặt đồ)</div>

@@ -4,6 +4,7 @@ import { useMapStore, ROOM_WIDTH, ROOM_HEIGHT, WALL_THICKNESS, GATE_WIDTH } from
 export function runMovementSystem(delta: number) {
   const { 
     player, updatePlayer, enemies, updateEnemy, 
+    allies, updateAlly,
     destructibleBarrels, explosiveBarrels, chests, shrines, shopItems,
     cameraShake, setCameraShake,
     projectiles, setProjectiles
@@ -231,7 +232,49 @@ export function runMovementSystem(delta: number) {
     });
   });
 
-  // --- 4. DI CHUYỂN ĐẠN (PROJECTILES) ---
+  // --- 4. DI CHUYỂN ĐỒNG MINH (ALLIES) ---
+  allies.forEach(ally => {
+    if (ally.hitStopUntil && currentTime < ally.hitStopUntil) return;
+
+    const finalSpeed = ally.speed * (delta / 16.67);
+    let kx = ally.knockbackVx || 0;
+    let ky = ally.knockbackVy || 0;
+
+    let ax = ally.x + ally.vx * finalSpeed + kx * (delta / 16.67);
+    let ay = ally.y + ally.vy * finalSpeed + ky * (delta / 16.67);
+
+    kx *= 0.85;
+    ky *= 0.85;
+    if (Math.abs(kx) < 0.1) kx = 0;
+    if (Math.abs(ky) < 0.1) ky = 0;
+
+    let facing = ally.facingDirection || 1;
+    if (ally.vx < 0) facing = -1;
+    else if (ally.vx > 0) facing = 1;
+
+    let nextAnimState = ally.animState || 'idle';
+    if (nextAnimState !== 'attack') {
+      if (ally.vx !== 0 || ally.vy !== 0) nextAnimState = 'walk';
+      else nextAnimState = 'idle';
+    }
+
+    // Giới hạn trong phòng (Sói không đi xuyên tường)
+    let constrained = constrainToRoom(ax, ay, ally.radius, false);
+
+    // Va chạm với vật cản tĩnh (Thùng, rương...)
+    constrained = handleStaticCollision(constrained.x, constrained.y, ally.radius, staticObstacles);
+
+    updateAlly(ally.id, {
+      x: constrained.x,
+      y: constrained.y,
+      knockbackVx: kx,
+      knockbackVy: ky,
+      facingDirection: facing as 1 | -1,
+      animState: nextAnimState
+    });
+  });
+
+  // --- 5. DI CHUYỂN ĐẠN (PROJECTILES) ---
   const nextProjectiles = projectiles.map(p => ({
     ...p,
     x: p.x + p.vx * (delta / 16.67),

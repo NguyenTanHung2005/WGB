@@ -40,5 +40,45 @@ export const CHARACTER_CLASSES: CharacterClass[] = [
     skillName: 'Piercing Arrow',
     skillCooldown: 6000,
     skillDescription: 'Bắn ra một mũi tên cực mạnh xuyên thấu toàn bộ kẻ địch trên đường bay, gây 10 sát thương và không bị chặn bởi thùng gỗ.'
+  },
+  {
+    id: 'summoner',
+    name: 'Triệu hồi sư (Summoner)',
+    maxHp: 5,
+    maxShield: 3,
+    speed: 4.2,
+    skillName: 'Summon Spirit Wolves',
+    skillCooldown: 15000,
+    skillDescription: 'Triệu hồi 2 Sói tinh linh chiến đấu sát cánh cùng bạn. Chúng tự động săn lùng và cắn xé kẻ địch xung quanh. Sói tinh linh tồn tại trong 15 giây trước khi tan biến.'
+  },
+  {
+    id: 'paladin',
+    name: 'Kỵ sĩ thánh (Paladin)',
+    maxHp: 7,
+    maxShield: 8,
+    speed: 3.2,
+    skillName: 'Holy Nova',
+    skillCooldown: 15000,
+    skillDescription: 'Phóng ra một vụ nổ ánh sáng thần thánh xung quanh. Lập tức hồi phục 2 Máu và 2 Giáp cho bản thân, đồng thời gây sát thương diện rộng và đẩy lùi quái vật.'
+  },
+  {
+    id: 'berserker',
+    name: 'Cuồng chiến binh (Berserker)',
+    maxHp: 10,
+    maxShield: 0,
+    speed: 5.0,
+    skillName: 'Whirlwind',
+    skillCooldown: 12000,
+    skillDescription: 'Xoay vũ khí điên cuồng trong 4 giây. Liên tục gây sát thương cận chiến lên mọi quái vật xung quanh trong khi di chuyển với tốc độ cao.'
+  },
+  {
+    id: 'ninja',
+    name: 'Nhẫn giả (Ninja)',
+    maxHp: 5,
+    maxShield: 3,
+    speed: 6.0,
+    skillName: 'Shuriken Nova',
+    skillCooldown: 8000,
+    skillDescription: 'Phóng cùng lúc 8 phi tiêu tẩm độc bay ra theo 8 hướng khác nhau với tốc độ cực cao.'
   }
 ];

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useEntityStore } from '../store/entityStore';
 import { useGameStore } from '../store/gameStore';
 import { useMapStore } from '../store/mapStore';
-import { Heart, Shield, Zap, Coins, Menu, Swords } from 'lucide-react';
+import { Heart, Shield, Zap, Coins, Menu, Swords, Wind, Target } from 'lucide-react';
 
 export const HUDOverlay: React.FC = () => {
   const { player } = useEntityStore();
@@ -61,14 +61,31 @@ export const HUDOverlay: React.FC = () => {
   };
 
   const renderMiniMap = () => {
+    if (rooms.length === 0) return null;
+
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    rooms.forEach(r => {
+      if (r.gridX < minX) minX = r.gridX;
+      if (r.gridX > maxX) maxX = r.gridX;
+      if (r.gridY < minY) minY = r.gridY;
+      if (r.gridY > maxY) maxY = r.gridY;
+    });
+
     const mapGrid = [];
-    for (let y = 0; y < 3; y++) {
+    for (let y = minY; y <= maxY; y++) {
       const row = [];
-      for (let x = 0; x < 3; x++) {
+      for (let x = minX; x <= maxX; x++) {
         const roomId = `room_${x}_${y}`;
         const room = rooms.find(r => r.id === roomId);
+        
+        if (!room) {
+          row.push(<div key={`map_${x}_${y}`} className="map-cell" style={{ opacity: 0 }} />);
+          continue;
+        }
+
         const isCurrent = currentRoomId === roomId;
-        const isVisited = room && room.state !== 'unvisited';
+        const isVisited = room.state !== 'unvisited';
 
         let bgStyle = {
           backgroundColor: 'rgba(15, 23, 42, 0.4)',
@@ -85,7 +102,7 @@ export const HUDOverlay: React.FC = () => {
 
         let label = '';
         let color = '#ffffff';
-        if (room && isVisited) {
+        if (isVisited) {
           if (room.type === 'shop') { label = 'S'; color = '#fbbf24'; }
           else if (room.type === 'chest') { label = 'C'; color = '#34d399'; }
           else if (room.type === 'boss') { label = 'B'; color = '#f43f5e'; }
@@ -144,10 +161,18 @@ export const HUDOverlay: React.FC = () => {
               {!isSkillReady && (
                 <div 
                   className="hud-skill-cd"
-                  style={{ height: `${100 - cooldownPercent}%` }}
+                  style={{ 
+                    height: `${100 - cooldownPercent}%`,
+                    backgroundColor: player.classId === 'knight' ? 'rgba(251, 191, 36, 0.3)' : 
+                                     player.classId === 'rogue' ? 'rgba(56, 189, 248, 0.3)' : 
+                                     'rgba(167, 139, 250, 0.3)'
+                  }}
                 />
               )}
-              <Zap size={36} className={`${isSkillReady ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 8px rgba(251,191,36,0.8))' } : {}} />
+              {player.classId === 'knight' && <Shield size={36} className={`${isSkillReady ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 8px rgba(251,191,36,0.8))' } : {}} />}
+              {player.classId === 'rogue' && <Wind size={36} className={`${isSkillReady ? 'text-sky-400 fill-sky-400' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 8px rgba(56,189,248,0.8))' } : {}} />}
+              {player.classId === 'mage' && <Zap size={36} className={`${isSkillReady ? 'text-purple-400 fill-purple-400' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 8px rgba(167,139,250,0.8))' } : {}} />}
+              {(!player.classId || player.classId === 'archer') && <Target size={36} className={`${isSkillReady ? 'text-emerald-400' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {}} />}
               <span className="hud-skill-key">E</span>
             </div>
 

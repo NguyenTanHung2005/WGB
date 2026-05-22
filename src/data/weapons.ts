@@ -15,7 +15,7 @@ export const WEAPONS: Weapon[] = [
     id: 'assault_rifle',
     name: 'Assault Rifle',
     type: 'ranged',
-    damage: 3,
+    damage: 2,
     fireRate: 120,
     projectileSpeed: 14,
     range: 600,
@@ -25,8 +25,8 @@ export const WEAPONS: Weapon[] = [
     id: 'broadsword',
     name: 'Broadsword',
     type: 'melee',
-    damage: 9,
-    fireRate: 600,
+    damage: 10,
+    fireRate: 500,
     range: 85,
     color: '#38bdf8'
   },
@@ -34,8 +34,8 @@ export const WEAPONS: Weapon[] = [
     id: 'magic_staff',
     name: 'Trượng ma thuật',
     type: 'magic',
-    damage: 12,
-    fireRate: 800,
+    damage: 8,
+    fireRate: 600,
     projectileSpeed: 8,
     range: 450,
     color: '#a855f7'
@@ -54,7 +54,7 @@ export const WEAPONS: Weapon[] = [
     id: 'dagger',
     name: 'Dao găm bóng đêm',
     type: 'melee',
-    damage: 6,
+    damage: 5,
     fireRate: 200,
     range: 60,
     color: '#cbd5e1'
@@ -63,10 +63,49 @@ export const WEAPONS: Weapon[] = [
     id: 'wooden_bow',
     name: 'Cung Gỗ',
     type: 'ranged',
-    damage: 5,
-    fireRate: 600,
+    damage: 6,
+    fireRate: 700,
     projectileSpeed: 10,
     range: 450,
     color: '#8b5cf6'
+  },
+  {
+    id: 'sniper_rifle',
+    name: 'Sniper Rifle',
+    type: 'ranged',
+    damage: 15,
+    fireRate: 1500,
+    projectileSpeed: 25,
+    range: 1000,
+    color: '#10b981'
+  },
+  {
+    id: 'plasma_cannon',
+    name: 'Pháo Plasma',
+    type: 'magic',
+    damage: 10,
+    fireRate: 600,
+    projectileSpeed: 6,
+    range: 600,
+    color: '#0ea5e9'
+  },
+  {
+    id: 'heavy_axe',
+    name: 'Rìu Chiến',
+    type: 'melee',
+    damage: 18,
+    fireRate: 900,
+    range: 75,
+    color: '#f43f5e'
+  },
+  {
+    id: 'crossbow',
+    name: 'Nỏ Kép',
+    type: 'ranged',
+    damage: 6,
+    fireRate: 350,
+    projectileSpeed: 16,
+    range: 500,
+    color: '#a3e635'
   }
 ];

@@ -5,6 +5,7 @@ import { MenuScreen } from './components/MenuScreen';
 import { GameCanvas } from './components/GameCanvas';
 import { GameOverScreen } from './components/GameOverScreen';
 import { HUDOverlay } from './components/HUDOverlay';
+import { PauseMenu } from './components/PauseMenu';
 import { HelpCircle } from 'lucide-react';
 import './overlay.css';
 
@@ -40,6 +41,9 @@ function App() {
 
       {/* Màn hình Menu / Chọn nhân vật */}
       {phase === 'menu' && <MenuScreen />}
+
+      {/* Màn hình Tạm dừng */}
+      {phase === 'paused' && <PauseMenu />}
 
       {/* Màn hình báo Thắng / Thua */}
       {(phase === 'game_over' || phase === 'victory') && <GameOverScreen />}

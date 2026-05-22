@@ -4,6 +4,7 @@ import type { Entity } from '../types/interfaces';
 export function runAISystem(_delta: number) {
   const { 
     player, updatePlayer, enemies, updateEnemy, 
+    allies, updateAlly, removeAlly,
     addProjectile, addParticle, addDamageNumber, setCameraShake,
     destructibleBarrels, removeDestructibleBarrel,
     explosiveBarrels, removeExplosiveBarrel
@@ -56,23 +57,25 @@ export function runAISystem(_delta: number) {
       targetVx = dx / dist;
       targetVy = dy / dist;
 
-      // Va chạm/Tấn công Player khi áp sát
-      const attackDist = enemy.radius + player.radius + 8;
-      if (dist <= attackDist) {
-        // Tấn công cận chiến
-        const lastAttackTime = enemy.lastAttackTime || 0;
-        const cooldown = enemy.type === 'boss' ? 1200 : enemy.speed * 400; // Cooldown dựa trên chỉ số
-        
-        if (currentTime - lastAttackTime >= cooldown) {
-          updateEnemy(enemy.id, { lastAttackTime: currentTime });
-          
-          if (enemy.type === 'boss') {
-            // BOSS ATTACK: Tỏa đạn chùm 360 độ hoặc dậm nhảy
-            triggerBossSpecialAttack(enemy, player, currentTime);
-          } else {
-            // Quái thường chém player
+      // Quái thường: Tấn công cận chiến khi áp sát
+      if (enemy.type !== 'boss') {
+        const attackDist = enemy.radius + player.radius + 8;
+        if (dist <= attackDist) {
+          const lastAttackTime = enemy.lastAttackTime || 0;
+          const cooldown = enemy.speed * 400;
+          if (currentTime - lastAttackTime >= cooldown) {
+            updateEnemy(enemy.id, { lastAttackTime: currentTime });
             dealDamageToPlayer(enemy.damage!, player, currentTime);
           }
+        }
+      } else {
+        // AI Của Boss: Tấn công liên tục bất kể khoảng cách, thời gian hồi chiêu khó đoán
+        const lastAttackTime = enemy.lastAttackTime || 0;
+        const cooldown = (enemy as any).nextCooldown || 1500;
+        if (currentTime - lastAttackTime >= cooldown) {
+          const nextCd = 800 + Math.random() * 1200; // Cooldown ngẫu nhiên từ 0.8s - 2.0s
+          updateEnemy(enemy.id, { lastAttackTime: currentTime, nextCooldown: nextCd } as any);
+          triggerBossSpecialAttack(enemy, player, currentTime);
         }
       }
     } 
@@ -131,6 +134,80 @@ export function runAISystem(_delta: number) {
         triggerExplosion(enemy.x, enemy.y, enemy.damage!, 90, currentTime);
       }
     }
+    else if (enemy.aiPattern === 'summon') {
+      // TỬ LINH SƯ: Tránh xa Player, giữ khoảng cách 250-400
+      if (dist > 400) {
+        targetVx = dx / dist;
+        targetVy = dy / dist;
+      } else if (dist < 250) {
+        targetVx = -dx / dist;
+        targetVy = -dy / dist;
+      } else {
+        targetVx = 0;
+        targetVy = 0;
+      }
+
+      const lastAIShootTime = enemy.lastAIShootTime || 0;
+      const cooldown = 15000; // 15 giây
+      if (currentTime - lastAIShootTime >= cooldown) {
+        updateEnemy(enemy.id, { lastAIShootTime: currentTime });
+        
+        // Triệu hồi 2 melee_skeleton
+        addDamageNumber({
+          id: `necro_summon_${Date.now()}`,
+          x: enemy.x,
+          y: enemy.y - 20,
+          value: 0,
+          color: '#a855f7',
+          isCrit: true,
+          text: 'ARISE!',
+          createdAt: currentTime,
+          lifespan: 1500
+        } as any);
+
+        for (let i = 0; i < 2; i++) {
+          const offsetAngle = Math.random() * Math.PI * 2;
+          const spawnX = enemy.x + Math.cos(offsetAngle) * 40;
+          const spawnY = enemy.y + Math.sin(offsetAngle) * 40;
+          
+          useEntityStore.getState().addEnemy({
+            id: `summoned_skel_${Date.now()}_${i}`,
+            x: spawnX,
+            y: spawnY,
+            vx: 0,
+            vy: 0,
+            angle: 0,
+            radius: 14,
+            hp: 15,
+            maxHp: 15,
+            damage: 3,
+            speed: 2.5,
+            color: '#94a3b8',
+            type: 'enemy',
+            aiPattern: 'chase',
+            templateId: 'melee_skeleton',
+            statusEffects: []
+          });
+
+          // Hiệu ứng hạt tím
+          for(let k = 0; k < 10; k++) {
+            addParticle({
+              id: `necro_spark_${Date.now()}_${k}_${i}`,
+              x: spawnX,
+              y: spawnY,
+              vx: (Math.random() - 0.5) * 4,
+              vy: (Math.random() - 0.5) * 4,
+              radius: 3,
+              color: '#d8b4fe',
+              alpha: 1.0,
+              decay: 0.03,
+              createdAt: currentTime,
+              lifespan: 500
+            });
+          }
+        }
+      }
+    }
 
     // Áp dụng lực ma sát để giảm lực đẩy lùi (Knockback) và chuyển hướng dần theo di chuyển
     const lerpFactor = 0.15; // Phản hồi di chuyển mượt mà
@@ -147,35 +224,36 @@ export function runAISystem(_delta: number) {
   function dealDamageToPlayer(damage: number, p: Entity, time: number) {
     if (isPlayerRolling) return; // Đang lộn nhào né -> vô địch
 
-    let finalDmg = damage;
-    const shield = p.shield || 0;
-    const hp = p.hp;
+    updatePlayer(prev => {
+      let finalDmg = damage;
+      const shield = prev.shield || 0;
+      const hp = prev.hp;
 
-    let nextShield = shield;
-    let nextHp = hp;
+      let nextShield = shield;
+      let nextHp = hp;
 
-    if (shield > 0) {
-      if (shield >= finalDmg) {
-        nextShield = shield - finalDmg;
-        finalDmg = 0;
-      } else {
-        finalDmg -= shield;
-        nextShield = 0;
+      if (shield > 0) {
+        if (shield >= finalDmg) {
+          nextShield = shield - finalDmg;
+          finalDmg = 0;
+        } else {
+          finalDmg -= shield;
+          nextShield = 0;
+        }
       }
-    }
 
-    if (finalDmg > 0) {
-      nextHp = Math.max(0, hp - finalDmg);
-    }
+      if (finalDmg > 0) {
+        nextHp = Math.max(0, hp - finalDmg);
+      }
 
-    updatePlayer({
-      hp: nextHp,
-      shield: nextShield,
-      ...({ 
-        lastHitTime: time, // Cập nhật thời điểm nhận sát thương để hoãn hồi giáp
+      return {
+        ...prev,
+        hp: nextHp,
+        shield: nextShield,
+        lastHitTime: time,
         hitFlashActive: true,
         hitFlashStart: time
-      } as any)
+      };
     });
 
     // Tạo số sát thương nổi lên trên đầu Player (màu đỏ giáp hoặc đỏ máu)
@@ -184,7 +262,7 @@ export function runAISystem(_delta: number) {
       x: p.x,
       y: p.y - 15,
       value: damage,
-      color: shield > 0 ? '#94a3b8' : '#ef4444', // Màu giáp bạc hoặc đỏ máu
+      color: (p.shield || 0) > 0 ? '#94a3b8' : '#ef4444', // Màu giáp bạc hoặc đỏ máu
       isCrit: false,
       createdAt: time,
       lifespan: 600
@@ -297,66 +375,252 @@ export function runAISystem(_delta: number) {
 
   // --- HÀM TẤN CÔNG ĐẶC BIỆT CỦA BOSS (GRAND SLIME) ---
   function triggerBossSpecialAttack(boss: Entity, p: Entity, time: number) {
-    const randomAction = Math.random();
+    const isEnraged = boss.hp < boss.maxHp * 0.5;
+    const rand = Math.random();
 
-    if (randomAction < 0.65) {
-      // 1. TỎA ĐẠN 360 ĐỘ (Ring of Fire)
-      setCameraShake(3);
-      const bulletCount = boss.hp < boss.maxHp * 0.5 ? 16 : 10; // Bắn nhiều đạn hơn khi dưới 50% máu
-      const speed = 4;
-
+    if (rand < 0.4) {
+      // 1. SPIRAL BULLET HELL (Mưa đạn xoáy ốc)
+      setCameraShake(4);
+      const bulletCount = isEnraged ? 24 : 12; 
+      const speed = isEnraged ? 5 : 3.5;
+      
+      // Tạo đạn trễ dần để tạo hiệu ứng xoắn ốc
       for (let i = 0; i < bulletCount; i++) {
-        const bulletAngle = (i / bulletCount) * Math.PI * 2;
-        const vx = Math.cos(bulletAngle) * speed;
-        const vy = Math.sin(bulletAngle) * speed;
+        setTimeout(() => {
+          const bulletAngle = (i / bulletCount) * Math.PI * 4; // Xoay 2 vòng
+          const vx = Math.cos(bulletAngle) * speed;
+          const vy = Math.sin(bulletAngle) * speed;
 
-        addProjectile({
-          id: `boss_bullet_${Date.now()}_${i}`,
-          owner: 'enemy',
-          x: boss.x + Math.cos(bulletAngle) * (boss.radius + 10),
-          y: boss.y + Math.sin(bulletAngle) * (boss.radius + 10),
-          vx,
-          vy,
-          radius: 6,
-          damage: boss.damage!,
-          color: '#f43f5e',
-          lifespan: 2500,
-          createdAt: time
-        });
+          addProjectile({
+            id: `boss_bullet_${Date.now()}_${i}`,
+            owner: 'enemy',
+            x: boss.x + Math.cos(bulletAngle) * (boss.radius + 10),
+            y: boss.y + Math.sin(bulletAngle) * (boss.radius + 10),
+            vx,
+            vy,
+            radius: isEnraged ? 8 : 6,
+            damage: boss.damage!,
+            color: isEnraged ? '#991b1b' : '#f43f5e',
+            lifespan: 3000,
+            createdAt: performance.now()
+          });
+        }, i * 60); // Bắn đạn cách nhau 60ms
       }
     } 
-    else {
-      // 2. NHẢY DẬM ĐẤT (SLAM ATTACK)
-      // Boss nhảy xổ về hướng Player
+    else if (rand < 0.75 || !isEnraged) {
+      // 2. BERSERK DASH (Lướt điên cuồng về phía Player)
       const jumpAngle = Math.atan2(p.y - boss.y, p.x - boss.x);
-      const bdx = p.x - boss.x;
-      const bdy = p.y - boss.y;
-      const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
-      const jumpDist = Math.min(bdist, 200); // Nhảy tối đa 200px
+      const dashSpeed = isEnraged ? 14 : 10;
       
       updateEnemy(boss.id, {
-        vx: Math.cos(jumpAngle) * 8,
-        vy: Math.sin(jumpAngle) * 8,
-        // Đánh dấu boss đang nhảy
-        ...({ isJumping: true, jumpTargetX: boss.x + Math.cos(jumpAngle) * jumpDist, jumpTargetY: boss.y + Math.sin(jumpAngle) * jumpDist } as any)
+        vx: Math.cos(jumpAngle) * dashSpeed,
+        vy: Math.sin(jumpAngle) * dashSpeed,
+        // Đánh dấu boss đang nhảy/lướt
+        ...({ isJumping: true } as any)
       });
 
-      // Tạo bóng mờ boss nhảy
-      for (let k = 0; k < 5; k++) {
+      // Tạo bóng mờ và vệt lửa phía sau
+      for (let k = 0; k < 8; k++) {
         addParticle({
-          id: `boss_jump_dust_${Date.now()}_${k}`,
+          id: `boss_dash_dust_${Date.now()}_${k}`,
           x: boss.x,
           y: boss.y,
-          vx: (Math.random() - 0.5) * 3,
-          vy: (Math.random() - 0.5) * 3,
-          radius: 5 + Math.random() * 5,
-          color: 'rgba(6, 182, 212, 0.4)',
-          alpha: 0.7,
-          decay: 0.05,
+          vx: (Math.random() - 0.5) * 4,
+          vy: (Math.random() - 0.5) * 4,
+          radius: 6 + Math.random() * 6,
+          color: isEnraged ? '#ef4444' : 'rgba(6, 182, 212, 0.4)',
+          alpha: 0.8,
+          decay: 0.04,
           createdAt: time,
-          lifespan: 300
+          lifespan: 400
         });
       }
     }
+    else {
+      // 3. SUMMON MINIONS (Triệu hồi Lính - Chỉ dùng khi isEnraged)
+      setCameraShake(8);
+      
+      // Tạo chữ cảnh báo
+      addDamageNumber({
+        id: `boss_summon_${Date.now()}`,
+        x: boss.x,
+        y: boss.y - boss.radius - 20,
+        value: 0,
+        color: '#fbbf24',
+        isCrit: true,
+        text: 'RISE, MINIONS!',
+        createdAt: time,
+        lifespan: 1500
+      } as any);
+
+      // Triệu hồi 2 Dơi Tự Sát (Suicide Bats)
+      const numMinions = 2;
+      for (let i = 0; i < numMinions; i++) {
+        const offsetAngle = Math.random() * Math.PI * 2;
+        const spawnX = boss.x + Math.cos(offsetAngle) * 80;
+        const spawnY = boss.y + Math.sin(offsetAngle) * 80;
+        
+        useEntityStore.getState().addEnemy({
+          id: `minion_bat_${Date.now()}_${i}`,
+          x: spawnX,
+          y: spawnY,
+          vx: 0,
+          vy: 0,
+          angle: 0,
+          radius: 12,
+          hp: 20,
+          maxHp: 20,
+          damage: 5,
+          speed: 1.5,
+          color: '#8b5cf6',
+          type: 'enemy',
+          aiPattern: 'charge',
+          templateId: 'suicide_bat',
+          statusEffects: []
+        });
+
+        // Hạt hiệu ứng triệu hồi
+        for(let k = 0; k < 10; k++) {
+          addParticle({
+            id: `summon_spark_${Date.now()}_${k}_${i}`,
+            x: spawnX,
+            y: spawnY,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            radius: 3,
+            color: '#a855f7',
+            alpha: 1.0,
+            decay: 0.03,
+            createdAt: time,
+            lifespan: 500
+          });
+        }
+      }
+    }
   }
+  // --- 5. XỬ LÝ ĐỒNG MINH (ALLIES) ---
+  allies.forEach(ally => {
+    // Kiểm tra hết hạn thời gian
+    if (ally.expireTime && currentTime >= ally.expireTime) {
+      // Sói tinh linh tan biến thành hạt sáng
+      for (let k = 0; k < 10; k++) {
+        addParticle({
+          id: `ally_expire_${Date.now()}_${ally.id}_${k}`,
+          x: ally.x,
+          y: ally.y,
+          vx: (Math.random() - 0.5) * 4,
+          vy: (Math.random() - 0.5) * 4,
+          radius: 2 + Math.random() * 2,
+          color: '#2dd4bf', // Cyan sẫm
+          alpha: 1.0,
+          decay: 0.05,
+          createdAt: currentTime,
+          lifespan: 300
+        });
+      }
+      removeAlly(ally.id);
+      return;
+    }
+
+    if (ally.aiPattern === 'chase') {
+      // TÌM MỤC TIÊU LÀ QUÁI VẬT GẦN NHẤT
+      let target: Entity | null = null;
+      let minDist = 600; // Tầm nhìn sói
+
+      const activeEnemies = enemies.filter(e => e.hp > 0);
+      for (const e of activeEnemies) {
+        const dx = e.x - ally.x;
+        const dy = e.y - ally.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minDist) {
+          minDist = dist;
+          target = e;
+        }
+      }
+
+      if (target) {
+        const dx = target.x - ally.x;
+        const dy = target.y - ally.y;
+        const angle = Math.atan2(dy, dx);
+
+        // Đuổi theo quái
+        const targetVx = Math.cos(angle) * ally.speed;
+        const targetVy = Math.sin(angle) * ally.speed;
+
+        const lerpFactor = 0.15;
+        const nextVx = ally.vx * (1 - lerpFactor) + targetVx * lerpFactor;
+        const nextVy = ally.vy * (1 - lerpFactor) + targetVy * lerpFactor;
+
+        updateAlly(ally.id, { vx: nextVx, vy: nextVy, angle });
+
+        // Cắn nếu ở gần
+        const explodeDist = ally.radius + target.radius + 15;
+        if (minDist <= explodeDist) {
+          const lastAttackTime = ally.lastAttackTime || 0;
+          if (currentTime - lastAttackTime > 800) { // Sói cắn mỗi 0.8s
+            updateAlly(ally.id, { lastAttackTime: currentTime });
+            
+            // Gây sát thương lên quái
+            const nextHp = Math.max(0, target.hp - (ally.damage || 5));
+            updateEnemy(target.id, { 
+              hp: nextHp,
+              // Giật lùi
+              vx: Math.cos(angle) * 3,
+              vy: Math.sin(angle) * 3
+            });
+
+            addDamageNumber({
+              id: `ally_dmg_${Date.now()}_${target.id}`,
+              x: target.x,
+              y: target.y - 15,
+              value: ally.damage || 5,
+              color: '#fcd34d', // Vàng cam
+              isCrit: false,
+              createdAt: currentTime,
+              lifespan: 500
+            });
+
+            // Máu xịt ra từ quái bị cắn
+            for (let k = 0; k < 3; k++) {
+              addParticle({
+                id: `wolf_bite_${Date.now()}_${target.id}_${k}`,
+                x: target.x,
+                y: target.y,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4,
+                radius: 2,
+                color: '#ef4444',
+                alpha: 0.8,
+                decay: 0.1,
+                createdAt: currentTime,
+                lifespan: 150
+              });
+            }
+          }
+        }
+      } else {
+        // Nếu không có quái, chạy vòng quanh người chơi
+        const dx = player.x - ally.x;
+        const dy = player.y - ally.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        let targetVx = 0;
+        let targetVy = 0;
+        let angle = ally.angle;
+
+        if (dist > 80) { // Nếu cách xa quá 80px thì chạy lại gần
+          angle = Math.atan2(dy, dx);
+          targetVx = Math.cos(angle) * ally.speed * 0.8; // Chạy chậm hơn xíu khi theo chủ
+          targetVy = Math.sin(angle) * ally.speed * 0.8;
+        }
+
+        const lerpFactor = 0.1;
+        updateAlly(ally.id, { 
+          vx: ally.vx * (1 - lerpFactor) + targetVx * lerpFactor, 
+          vy: ally.vy * (1 - lerpFactor) + targetVy * lerpFactor,
+          angle
+        });
+      }
+    }
+  });
 }

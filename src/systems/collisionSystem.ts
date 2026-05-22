@@ -14,6 +14,7 @@ export function runCollisionSystem() {
     explosiveBarrels, removeExplosiveBarrel,
     goldPickups, removeGoldPickup,
     healthPickups, removeHealthPickup,
+    itemPickups, removeItemPickup,
     spikeTraps,
     portal, setCameraShake,
     addGoldPickup, addHealthPickup
@@ -110,12 +111,9 @@ export function runCollisionSystem() {
         const dmgRatio = 1 - (edist / radius);
         const finalDmg = Math.max(1, Math.floor(damage * 1.5 * dmgRatio));
         const nextHp = Math.max(0, e.hp - finalDmg);
-        const forceAngle = Math.atan2(e.y - ey, e.x - ex);
 
         updateEnemy(e.id, {
           hp: nextHp,
-          knockbackVx: Math.cos(forceAngle) * 15,
-          knockbackVy: Math.sin(forceAngle) * 15,
           hitStopUntil: currentTime + 50
         });
 
@@ -199,6 +197,8 @@ export function runCollisionSystem() {
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist <= proj.radius + enemy.radius) {
+          // Bỏ qua nếu đạn xuyên đã từng trúng mục tiêu này
+          if (proj.piercing && proj.piercedEntities?.includes(enemy.id)) continue;
           hit = true;
           
           // Tính toán chí mạng từ Rogue lộn nhào hoặc mặc định
@@ -206,13 +206,9 @@ export function runCollisionSystem() {
           const finalDmg = isCrit ? Math.floor(proj.damage * 1.5) : proj.damage;
           
           const nextHp = Math.max(0, enemy.hp - finalDmg);
-          const pushAngle = Math.atan2(dy, dx);
           
           updateEnemy(enemy.id, {
             hp: nextHp,
-            // Lực đẩy giật lùi mạnh khi bị trúng đạn
-            knockbackVx: -Math.cos(pushAngle) * (isCrit ? 10 : 5),
-            knockbackVy: -Math.sin(pushAngle) * (isCrit ? 10 : 5),
             hitStopUntil: isCrit ? currentTime + 80 : currentTime + 30
           });
 
@@ -253,7 +249,15 @@ export function runCollisionSystem() {
           if (proj.radius === 8) {
             triggerExplosionAt(proj.x, proj.y, 10, 80);
           }
-          break;
+          
+          if (proj.piercing) {
+            // Không break, tiếp tục bay xuyên qua, và thêm quái vào danh sách đã trúng
+            if (!proj.piercedEntities) proj.piercedEntities = [];
+            proj.piercedEntities.push(enemy.id);
+            hit = false; // Vẫn tính là chưa hit (không xóa đạn)
+          } else {
+            break;
+          }
         }
       }
 
@@ -262,6 +266,9 @@ export function runCollisionSystem() {
         for (const b of destructibleBarrels) {
           const dist = Math.sqrt((proj.x - b.x) ** 2 + (proj.y - b.y) ** 2);
           if (dist <= proj.radius + b.radius) {
+            // Nếu đạn xuyên thủng, không phá hủy thùng gỗ và không bị chặn
+            if (proj.piercing) continue;
+
             hit = true;
             removeDestructibleBarrel(b.id);
             dropLoot(b.x, b.y);
@@ -320,38 +327,38 @@ export function runCollisionSystem() {
         hit = true;
         
         if (!isInvincible) {
-          // Gây sát thương lên Player
-          let finalDmg = proj.damage;
-          const shield = player.shield || 0;
-          const hp = player.hp;
-          let nextShield = shield;
-          let nextHp = hp;
           const pushAngle = Math.atan2(player.y - proj.y, player.x - proj.x);
-
-          if (shield > 0) {
-            if (shield >= finalDmg) {
-              nextShield = shield - finalDmg;
-              finalDmg = 0;
-            } else {
-              finalDmg -= shield;
-              nextShield = 0;
+          updatePlayer(prev => {
+            let finalDmg = proj.damage;
+            const shield = prev.shield || 0;
+            const hp = prev.hp;
+            let nextShield = shield;
+            let nextHp = hp;
+            
+            if (shield > 0) {
+              if (shield >= finalDmg) {
+                nextShield = shield - finalDmg;
+                finalDmg = 0;
+              } else {
+                finalDmg -= shield;
+                nextShield = 0;
+              }
             }
-          }
-          if (finalDmg > 0) {
-            nextHp = Math.max(0, hp - finalDmg);
-          }
+            if (finalDmg > 0) {
+              nextHp = Math.max(0, hp - finalDmg);
+            }
 
-          updatePlayer({
-            hp: nextHp,
-            shield: nextShield,
-            knockbackVx: Math.cos(pushAngle) * 6,
-            knockbackVy: Math.sin(pushAngle) * 6,
-            hitStopUntil: currentTime + 50,
-            ...({ 
+            return {
+              ...prev,
+              hp: nextHp,
+              shield: nextShield,
+              knockbackVx: Math.cos(pushAngle) * 6,
+              knockbackVy: Math.sin(pushAngle) * 6,
+              hitStopUntil: currentTime + 50,
               lastHitTime: currentTime,
               hitFlashActive: true,
               hitFlashStart: currentTime
-            } as any)
+            };
           });
 
           // Hiển thị sát thương
@@ -360,7 +367,7 @@ export function runCollisionSystem() {
             x: player.x,
             y: player.y - 15,
             value: proj.damage,
-            color: shield > 0 ? '#94a3b8' : '#ef4444',
+            color: (player.shield || 0) > 0 ? '#94a3b8' : '#ef4444',
             isCrit: false,
             createdAt: currentTime,
             lifespan: 600
@@ -489,7 +496,71 @@ export function runCollisionSystem() {
     }
   });
 
+  itemPickups.forEach(item => {
+    const dx = player.x - item.x;
+    const dy = player.y - item.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
 
+    // Hút nam châm tương tự như máu và vàng
+    if (dist <= MAGNET_RADIUS && dist > player.radius + item.radius) {
+      item.x += (dx / dist) * MAGNET_SPEED;
+      item.y += (dy / dist) * MAGNET_SPEED;
+    }
+
+    if (dist <= player.radius + item.radius) {
+      // Nhặt Item
+      let buffMessage = '';
+      if (item.itemType === 'golden_apple') {
+        updatePlayer({ hp: Math.min(player.maxHp, player.hp + 2) });
+        buffMessage = '+2 HP';
+      } else if (item.itemType === 'wind_boots') {
+        updatePlayer({ speed: player.speed + 0.5 });
+        buffMessage = '+0.5 TỐC ĐỘ';
+      } else if (item.itemType === 'ring_of_power') {
+        const boostedWeapons = (player.weapons || []).map(w => ({ ...w, damage: w.damage + 1 }));
+        updatePlayer({ weapons: boostedWeapons });
+        buffMessage = '+1 ATK';
+      } else if (item.itemType === 'energy_shield') {
+        updatePlayer({ 
+          maxShield: (player.maxShield || 0) + 1,
+          shield: (player.shield || 0) + 1
+        });
+        buffMessage = '+1 MAX SHIELD';
+      }
+
+      removeItemPickup(item.id);
+      
+      // Hiện thông báo Text bay lên
+      addDamageNumber({
+        id: `item_buff_${item.id}_${currentTime}`,
+        x: player.x,
+        y: player.y - 30,
+        value: 0,
+        isCrit: false,
+        color: '#10b981', // Màu xanh ngọc (Emerald)
+        text: buffMessage,
+        createdAt: currentTime,
+        lifespan: 1000
+      });
+
+      // Hạt lấp lánh màu xanh ngọc
+      for (let k = 0; k < 8; k++) {
+        addParticle({
+          id: `item_spark_${item.id}_${k}`,
+          x: player.x,
+          y: player.y,
+          vx: (Math.random() - 0.5) * 4,
+          vy: (Math.random() - 0.5) * 4,
+          radius: 3,
+          color: '#10b981',
+          alpha: 1.0,
+          decay: 0.05,
+          createdAt: currentTime,
+          lifespan: 300
+        });
+      }
+    }
+  });
 
   healthPickups.forEach(hp => {
     const dx = player.x - hp.x;
@@ -508,9 +579,10 @@ export function runCollisionSystem() {
     if (dist <= player.radius + hp.radius) {
       // Chỉ nhặt máu nếu chưa đầy máu
       if (currentHp < maxHp) {
-        updatePlayer({
-          hp: Math.min(maxHp, currentHp + hp.amount)
-        });
+        updatePlayer(prev => ({
+          ...prev,
+          hp: Math.min(prev.maxHp, prev.hp + hp.amount)
+        }));
         removeHealthPickup(hp.id);
         
         // Hạt nhặt máu đỏ lấp lánh

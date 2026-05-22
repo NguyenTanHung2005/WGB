@@ -4,6 +4,7 @@ import { useMapStore, ROOM_WIDTH, ROOM_HEIGHT, WALL_THICKNESS, GATE_WIDTH } from
 import { useGameStore } from '../store/gameStore';
 import { triggerPlayerAttack, triggerPlayerSkill } from '../systems/combatSystem';
 import { useGameLoop } from '../gameLoop/useGameLoop';
+import { drawPlayerChibi } from '../graphics/drawPlayer';
 import type { Entity } from '../types/interfaces';
 
 const drawMonster = (ctx: CanvasRenderingContext2D, enemy: Entity, isStunned: boolean, bounce: number) => {
@@ -111,50 +112,241 @@ const drawMonster = (ctx: CanvasRenderingContext2D, enemy: Entity, isStunned: bo
     ctx.closePath();
     ctx.fill();
 
+  } else if (enemy.templateId === 'melee_skeleton') {
+    // Melee Skeleton: Xương khô cầm kiếm rỉ
+    ctx.fillStyle = isStunned ? '#67e8f9' : '#cbd5e1';
+    
+    // Thân xương
+    ctx.beginPath();
+    ctx.arc(0, bounce * 0.5, enemy.radius * 0.85, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#334155';
+    ctx.stroke();
+
+    // Hốc mắt rỗng
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(enemy.radius * 0.2, -enemy.radius * 0.3 + bounce * 0.5, 3.5, 0, Math.PI * 2);
+    ctx.arc(enemy.radius * 0.2, enemy.radius * 0.3 + bounce * 0.5, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mắt léng đốm xanh lam (khác với đỏ của Ranged)
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(enemy.radius * 0.3, -enemy.radius * 0.3 + bounce * 0.5, 1.5, 0, Math.PI * 2);
+    ctx.arc(enemy.radius * 0.3, enemy.radius * 0.3 + bounce * 0.5, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Kiếm rỉ sét
+    ctx.fillStyle = '#78716c';
+    ctx.save();
+    ctx.translate(enemy.radius * 0.7, enemy.radius * 0.5 + bounce);
+    const attackPhase = performance.now() - (enemy.lastAttackTime || 0);
+    if (attackPhase < 300) {
+      ctx.rotate(Math.PI / 3 + Math.sin(attackPhase / 50)); // Chém kiếm
+    } else {
+      ctx.rotate(Math.PI / 4 + Math.sin(performance.now() / 200) * 0.1);
+    }
+    ctx.fillRect(-2, -15, 4, 35); // Lưỡi kiếm
+    ctx.fillStyle = '#451a03';
+    ctx.fillRect(-5, -5, 10, 4);  // Chuôi kiếm
+    ctx.restore();
+
+  } else if (enemy.templateId === 'necromancer') {
+    // Tử Linh Sư: Áo choàng đen, mắt tím, trượng đầu lâu
+    const floatY = Math.sin(performance.now() / 300) * 4; // Lơ lửng chậm
+
+    // Áo choàng (Thân)
+    ctx.fillStyle = isStunned ? '#67e8f9' : '#1e1b4b'; // Đen tím sẫm
+    ctx.beginPath();
+    ctx.moveTo(enemy.radius, 0 + floatY);
+    ctx.lineTo(-enemy.radius, enemy.radius + floatY);
+    ctx.lineTo(-enemy.radius, -enemy.radius + floatY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#312e81';
+    ctx.stroke();
+
+    // Mũ trùm đầu (Hood)
+    ctx.fillStyle = '#0f172a'; // Đen sì bên trong
+    ctx.beginPath();
+    ctx.arc(enemy.radius * 0.2, floatY, enemy.radius * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#4c1d95';
+    ctx.stroke();
+
+    // Hai mắt phát sáng tím rực
+    ctx.fillStyle = '#c084fc';
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = '#c084fc';
+    ctx.beginPath();
+    ctx.arc(enemy.radius * 0.4, -enemy.radius * 0.2 + floatY, 2.5, 0, Math.PI * 2);
+    ctx.arc(enemy.radius * 0.4, enemy.radius * 0.2 + floatY, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Trượng phép thuật (Staff)
+    ctx.fillStyle = '#451a03';
+    ctx.save();
+    ctx.translate(enemy.radius * 0.5, enemy.radius * 0.8 + floatY);
+    // Vung trượng khi niệm chú (mỗi 15s)
+    const timeSinceShoot = performance.now() - (enemy.lastAIShootTime || 0);
+    if (timeSinceShoot < 1500) { // Đang niệm
+      ctx.rotate(Math.PI / 4 + Math.sin(performance.now() / 50) * 0.2); // Rung trượng
+    } else {
+      ctx.rotate(Math.PI / 4 + Math.sin(performance.now() / 400) * 0.1); // Cầm lỏng lẻo
+    }
+    
+    ctx.fillRect(-2, -30, 4, 40); // Cán trượng
+
+    // Quả cầu năng lượng trên trượng
+    ctx.fillStyle = '#a855f7';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#d8b4fe';
+    ctx.beginPath();
+    ctx.arc(0, -32, 6 + Math.sin(performance.now() / 100) * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+  } else if (enemy.templateId === 'spirit_wolf') {
+    // Sói Tinh Linh: Sói ma thuật trong suốt màu Cyan
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = enemy.color || '#2dd4bf'; // Mặc định Cyan
+    
+    // Thân sói (Hình elip nằm ngang)
+    ctx.beginPath();
+    ctx.ellipse(0, bounce, enemy.radius * 1.2, enemy.radius * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#2dd4bf';
+
+    // Đầu sói (về phía trước)
+    ctx.beginPath();
+    ctx.arc(enemy.radius * 0.8, -enemy.radius * 0.2 + bounce, enemy.radius * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mõm sói
+    ctx.beginPath();
+    ctx.moveTo(enemy.radius * 1.2, -enemy.radius * 0.2 + bounce);
+    ctx.lineTo(enemy.radius * 1.6, enemy.radius * 0.1 + bounce);
+    ctx.lineTo(enemy.radius * 1.0, enemy.radius * 0.2 + bounce);
+    ctx.fill();
+
+    // Tai sói
+    ctx.beginPath();
+    ctx.moveTo(enemy.radius * 0.5, -enemy.radius * 0.6 + bounce);
+    ctx.lineTo(enemy.radius * 0.3, -enemy.radius * 1.0 + bounce);
+    ctx.lineTo(enemy.radius * 0.8, -enemy.radius * 0.5 + bounce);
+    ctx.fill();
+
+    // Mắt sói (sáng chói)
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(enemy.radius * 1.0, -enemy.radius * 0.2 + bounce, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Đuôi sói (về phía sau)
+    ctx.fillStyle = enemy.color || '#2dd4bf';
+    ctx.beginPath();
+    ctx.moveTo(-enemy.radius * 1.0, bounce);
+    ctx.lineTo(-enemy.radius * 1.6, -enemy.radius * 0.5 + bounce + Math.sin(performance.now() / 150) * 4); // Vẫy đuôi
+    ctx.lineTo(-enemy.radius * 0.8, enemy.radius * 0.4 + bounce);
+    ctx.fill();
+    
+    ctx.globalAlpha = 1.0;
+
   } else if (enemy.templateId === 'grand_slime') {
     // Boss Slime: To lớn, nén dẹt khi di chuyển
     const stretchX = 1.0 + Math.sin(performance.now() / 150) * 0.15;
     const stretchY = 1.0 - Math.sin(performance.now() / 150) * 0.15;
+    const isEnraged = enemy.hp < enemy.maxHp * 0.5;
 
-    // Thân Slime nhầy nhụa
+    // Aura Gai góc khi Nổi Điên
+    if (isEnraged) {
+      ctx.shadowBlur = 20 + Math.abs(Math.sin(performance.now() / 100)) * 10;
+      ctx.shadowColor = '#ef4444';
+    }
+
+    // Thân Slime
     ctx.beginPath();
     ctx.ellipse(0, bounce, enemy.radius * stretchX, enemy.radius * stretchY, 0, 0, Math.PI * 2);
-    ctx.fillStyle = isStunned ? '#67e8f9' : 'rgba(6, 182, 212, 0.8)'; // Xuyên thấu nhẹ
+    ctx.fillStyle = isStunned ? '#67e8f9' : (isEnraged ? 'rgba(220, 38, 38, 0.9)' : 'rgba(6, 182, 212, 0.8)');
     ctx.fill();
     ctx.lineWidth = 3;
-    ctx.strokeStyle = '#0891b2';
+    ctx.strokeStyle = isEnraged ? '#991b1b' : '#0891b2';
     ctx.stroke();
 
+    ctx.shadowBlur = 0; // Reset aura
+
     // Hạt nhân bên trong (Lõi Slime)
-    ctx.fillStyle = '#0ea5e9';
+    ctx.fillStyle = isEnraged ? '#f87171' : '#0ea5e9';
     ctx.beginPath();
     ctx.arc(0, bounce, enemy.radius * 0.3, 0, Math.PI * 2);
     ctx.fill();
 
-    // Mắt to ngốc nghếch
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(enemy.radius * 0.4, -enemy.radius * 0.3 + bounce, 6, 0, Math.PI * 2);
-    ctx.arc(enemy.radius * 0.4, enemy.radius * 0.3 + bounce, 6, 0, Math.PI * 2);
-    ctx.fill();
+    if (isEnraged) {
+      // Mắt quỷ dữ tợn (Enraged)
+      ctx.fillStyle = '#0f172a'; // Đen rỗng
+      ctx.beginPath();
+      // Mắt trái
+      ctx.moveTo(enemy.radius * 0.3, -enemy.radius * 0.4 + bounce);
+      ctx.lineTo(enemy.radius * 0.5, -enemy.radius * 0.2 + bounce);
+      ctx.lineTo(enemy.radius * 0.3, -enemy.radius * 0.1 + bounce);
+      ctx.fill();
+      // Mắt phải
+      ctx.beginPath();
+      ctx.moveTo(enemy.radius * 0.3, enemy.radius * 0.4 + bounce);
+      ctx.lineTo(enemy.radius * 0.5, enemy.radius * 0.2 + bounce);
+      ctx.lineTo(enemy.radius * 0.3, enemy.radius * 0.1 + bounce);
+      ctx.fill();
 
-    ctx.fillStyle = '#0f172a';
-    ctx.beginPath();
-    ctx.arc(enemy.radius * 0.5, -enemy.radius * 0.3 + bounce, 2, 0, Math.PI * 2);
-    ctx.arc(enemy.radius * 0.5, enemy.radius * 0.3 + bounce, 2, 0, Math.PI * 2);
-    ctx.fill();
+      // Đốm sáng đỏ rực trong mắt
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(enemy.radius * 0.4, -enemy.radius * 0.25 + bounce, 2, 0, Math.PI * 2);
+      ctx.arc(enemy.radius * 0.4, enemy.radius * 0.25 + bounce, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Mắt to ngốc nghếch (Bình thường)
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(enemy.radius * 0.4, -enemy.radius * 0.3 + bounce, 6, 0, Math.PI * 2);
+      ctx.arc(enemy.radius * 0.4, enemy.radius * 0.3 + bounce, 6, 0, Math.PI * 2);
+      ctx.fill();
 
-    // Vương miện Vua
-    ctx.fillStyle = '#fbbf24';
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.arc(enemy.radius * 0.5, -enemy.radius * 0.3 + bounce, 2, 0, Math.PI * 2);
+      ctx.arc(enemy.radius * 0.5, enemy.radius * 0.3 + bounce, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Vương miện (Gai góc hơn nếu nổi điên)
+    ctx.fillStyle = isEnraged ? '#475569' : '#fbbf24'; // Vương miện hắc ám khi Enraged
+    ctx.strokeStyle = isEnraged ? '#1e293b' : '#000';
     ctx.beginPath();
     ctx.moveTo(-enemy.radius * 0.2, bounce - enemy.radius * 0.8);
-    ctx.lineTo(-enemy.radius * 0.4, bounce - enemy.radius * 1.2);
+    ctx.lineTo(-enemy.radius * 0.5, bounce - enemy.radius * 1.3);
     ctx.lineTo(0, bounce - enemy.radius * 1.0);
-    ctx.lineTo(enemy.radius * 0.4, bounce - enemy.radius * 1.2);
+    ctx.lineTo(enemy.radius * 0.5, bounce - enemy.radius * 1.3);
     ctx.lineTo(enemy.radius * 0.2, bounce - enemy.radius * 0.8);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+
+    // Răng nanh (Chỉ xuất hiện khi Enraged)
+    if (isEnraged) {
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.moveTo(enemy.radius * 0.8, -10 + bounce);
+      ctx.lineTo(enemy.radius * 1.0, 0 + bounce);
+      ctx.lineTo(enemy.radius * 0.8, 10 + bounce);
+      ctx.fill();
+    }
 
   } else {
     // Mặc định (Fallback)
@@ -384,6 +576,18 @@ export const GameCanvas: React.FC = () => {
                 lifespan: 400
               });
             }
+
+            // Sinh ngẫu nhiên một vật phẩm (Item)
+            const itemTypes = ['golden_apple', 'wind_boots', 'ring_of_power', 'energy_shield'];
+            const randomItem = itemTypes[Math.floor(Math.random() * itemTypes.length)] as any;
+            
+            useEntityStore.getState().addItemPickup({
+              id: `item_${Date.now()}`,
+              x: chest.x,
+              y: chest.y + 20, // Rơi ra phía dưới rương
+              radius: 12,
+              itemType: randomItem
+            });
           }
           return;
         }
@@ -421,7 +625,7 @@ export const GameCanvas: React.FC = () => {
         if (!shrine.used) {
           if (shrine.type === 'health') {
             // Đền Máu: Hồi 3 máu
-            updatePlayer({ hp: Math.min(player.maxHp, player.hp + 3) });
+            updatePlayer(prev => ({ ...prev, hp: Math.min(prev.maxHp, prev.hp + 3) }));
           } else if (shrine.type === 'power') {
             // Đền Sức Mạnh: Trừ 2 max HP đổi lại vĩnh viễn +3 ATK cho vũ khí
             if (player.maxHp > 3) {
@@ -452,7 +656,7 @@ export const GameCanvas: React.FC = () => {
             purchaseShopItem(item.id);
 
             if (item.type === 'hp_potion') {
-              updatePlayer({ hp: Math.min(player.maxHp, player.hp + 4) });
+              updatePlayer(prev => ({ ...prev, hp: Math.min(prev.maxHp, prev.hp + 4) }));
             } else if (item.type === 'weapon' && item.weaponItem) {
               // Nhận vũ khí mới mua
               const pWeapons = [...(player.weapons || [])];
@@ -491,11 +695,10 @@ export const GameCanvas: React.FC = () => {
         const activeWeapon = player.weapons?.[player.activeWeaponIndex || 0];
         const attackRange = activeWeapon?.range || 600;
 
-        // Nếu có quái trong tầm đánh -> bắn/chém về phía quái tự động
         if (nearestEnemy && minDist <= attackRange) {
           triggerPlayerAttack(nearestEnemy.x, nearestEnemy.y);
-        } else if (isFiring) {
-          // Nếu KHÔNG CÓ QUÁI, người chơi PHẢI bấm giữ chuột trái (isFiring) thì mới bắn về hướng chuột
+        } else {
+          // Bỏ yêu cầu isFiring, tự động bắn theo hướng di chuyển hiện tại hoặc hướng chuột
           const rect = canvasRef.current.getBoundingClientRect();
           const centerX = rect.width / 2;
           const centerY = rect.height / 2;
@@ -524,8 +727,8 @@ export const GameCanvas: React.FC = () => {
     const render = () => {
       const state = useEntityStore.getState();
       const {
-        player, enemies, projectiles, particles, damageNumbers,
-        chests, shrines, shopItems, goldPickups, healthPickups,
+        player, enemies, allies, projectiles, particles, damageNumbers,
+        chests, shrines, shopItems, goldPickups, healthPickups, itemPickups,
         destructibleBarrels, explosiveBarrels, groundWeapons, spikeTraps, portal, cameraShake, updatePlayer
       } = state;
 
@@ -863,12 +1066,8 @@ export const GameCanvas: React.FC = () => {
         ctx.stroke();
       });
 
-
-
       healthPickups.forEach(hp => {
-        ctx.fillStyle = '#ef4444';
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = '#f87171';
+        ctx.fillStyle = '#ef4444'; // Đỏ tươi
         ctx.beginPath();
         ctx.arc(hp.x, hp.y, hp.radius, 0, Math.PI * 2);
         ctx.fill();
@@ -883,6 +1082,41 @@ export const GameCanvas: React.FC = () => {
         ctx.moveTo(hp.x, hp.y - 4);
         ctx.lineTo(hp.x, hp.y + 4);
         ctx.stroke();
+      });
+
+      // --- VẼ ITEM BUFF RƠI TỪ RƯƠNG ---
+      itemPickups.forEach(item => {
+        let color = '#fff';
+        let text = '?';
+        if (item.itemType === 'golden_apple') { color = '#facc15'; text = 'HP'; }
+        else if (item.itemType === 'wind_boots') { color = '#38bdf8'; text = 'SPD'; }
+        else if (item.itemType === 'ring_of_power') { color = '#ef4444'; text = 'ATK'; }
+        else if (item.itemType === 'energy_shield') { color = '#22d3ee'; text = 'SHD'; }
+
+        // Hiệu ứng nhấp nháy cho vòng sáng
+        const pulse = Math.abs(Math.sin(performance.now() / 200)) * 5;
+        
+        ctx.shadowBlur = 10 + pulse;
+        ctx.shadowColor = color;
+        
+        // Vẽ khung lục giác hoặc tròn
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(item.x, item.y, item.radius + 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.shadowBlur = 0; // Reset shadow
+
+        // Vẽ biểu tượng/text mini
+        ctx.fillStyle = color;
+        ctx.font = 'bold 8px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, item.x, item.y + 1);
       });
 
       // --- VẼ VŨ KHÍ RƠI TRÊN ĐẤT (GROUND WEAPONS) ---
@@ -960,10 +1194,16 @@ export const GameCanvas: React.FC = () => {
         }
       });
 
+      // --- VẼ ĐỒNG MINH (ALLIES) ---
+      allies.forEach(ally => {
+        const bounce = Math.sin(performance.now() / 150) * 4;
+        drawMonster(ctx, ally, false, bounce);
+      });
+
       // --- VẼ PLAYER (NHÂN VẬT CHÍNH - PROCEDURAL CHIBI) ---
       if (player) {
         const isHitFlash = (player as any).hitFlashActive && performance.now() - (player as any).hitFlashStart < 120;
-        const isKnightSkill = player.classId === 'knight' && player.skillActiveUntil && performance.now() < player.skillActiveUntil;
+        const isKnightSkill = Boolean(player.classId === 'knight' && player.skillActiveUntil && performance.now() < player.skillActiveUntil);
         const weapons = player.weapons || [];
         const activeIdx = player.activeWeaponIndex || 0;
         const weapon = weapons[activeIdx];
@@ -976,235 +1216,6 @@ export const GameCanvas: React.FC = () => {
           ctx.shadowColor = '#fbbf24';
         }
 
-        // HÀM VẼ CHIBI
-        const drawPixelChibi = (color: string, state: string, facing: number, phase: number, classId: string) => {
-          ctx.save();
-          ctx.scale(facing, 1);
-
-          let headY = -8;
-          let bodyY = 0;
-          let armRot = 0;
-          let legLRot = 0;
-          let legRRot = 0;
-
-          if (classId === 'mage') {
-            // Bay lơ lửng
-            headY += Math.sin(phase * 0.003) * 2;
-            bodyY += Math.sin(phase * 0.003) * 2;
-            if (state === 'walk') {
-              armRot = Math.sin(phase * 0.01) * 0.2;
-            }
-          } else if (classId === 'rogue' && state === 'walk') {
-            // Ninja run
-            headY += Math.sin(phase * 0.03) * 1.5;
-            legLRot = Math.sin(phase * 0.03) * 0.8;
-            legRRot = -Math.sin(phase * 0.03) * 0.8;
-            armRot = Math.PI / 4; // Tay quạt ra sau
-          } else if (state === 'idle') {
-            headY += Math.sin(phase * 0.005) * 1.5;
-            bodyY += Math.sin(phase * 0.005) * 0.5;
-          } else if (state === 'walk') {
-            // Normal / Knight / Archer walk
-            const speedMult = classId === 'knight' ? 0.015 : 0.02;
-            const bounce = classId === 'knight' ? 2.5 : 2;
-            headY += Math.sin(phase * speedMult) * bounce;
-            legLRot = Math.sin(phase * speedMult) * 0.6;
-            legRRot = -Math.sin(phase * speedMult) * 0.6;
-            armRot = Math.sin(phase * speedMult) * 0.4;
-          } else if (state === 'roll') {
-            ctx.rotate(phase * 0.04 * facing);
-            headY = 0;
-            legLRot = 0.5; legRRot = -0.5;
-          }
-
-          if (state === 'attack') {
-            const atkProgress = Math.min(1.0, (performance.now() - (player.lastAttackTime || 0)) / 200);
-            if (classId === 'mage') {
-              armRot = -Math.PI / 2 + Math.sin(atkProgress * Math.PI) * 0.5; // Giơ trượng lên cao
-            } else if (classId === 'archer') {
-              armRot = -Math.PI / 4; // Cầm cung giương ra trước
-            } else if (weapon && weapon.type === 'melee') {
-              armRot = -Math.PI / 2 + atkProgress * Math.PI; // Chém từ trên xuống
-            } else {
-              armRot = -0.2 + (atkProgress < 0.5 ? -0.3 : 0); // Giật lùi nòng súng
-            }
-          }
-
-          if (state === 'dead') {
-            // Bia mộ
-            ctx.fillStyle = '#64748b';
-            ctx.beginPath();
-            ctx.roundRect ? ctx.roundRect(-12, -15, 24, 30, 8) : ctx.fillRect(-12, -15, 24, 30);
-            ctx.fill();
-            ctx.fillStyle = '#1e293b'; ctx.fillRect(-16, 12, 32, 6);
-            ctx.fillStyle = '#94a3b8'; ctx.fillRect(-2, -5, 4, 12); ctx.fillRect(-6, -1, 12, 4);
-            ctx.fillStyle = '#334155'; ctx.font = 'bold 8px Courier New'; ctx.textAlign = 'center'; ctx.fillText('RIP', 0, 10);
-            ctx.restore();
-            return;
-          }
-
-          if (isHitFlash) color = '#ffffff';
-
-          // Chân
-          if (classId !== 'mage') { // Pháp sư không có chân (bay)
-            ctx.save(); ctx.translate(-4, bodyY + 6); ctx.rotate(legLRot);
-            ctx.fillStyle = classId === 'knight' ? '#64748b' : '#1e293b'; ctx.fillRect(-2, 0, 4, 8); ctx.restore();
-            ctx.save(); ctx.translate(4, bodyY + 6); ctx.rotate(legRRot);
-            ctx.fillStyle = classId === 'knight' ? '#64748b' : '#1e293b'; ctx.fillRect(-2, 0, 4, 8); ctx.restore();
-          } else {
-            // Hiệu ứng tà áo pháp sư
-            ctx.fillStyle = '#7c3aed';
-            ctx.beginPath();
-            ctx.moveTo(-6, bodyY + 6);
-            ctx.lineTo(6, bodyY + 6);
-            ctx.lineTo(8, bodyY + 12);
-            ctx.lineTo(-8, bodyY + 12);
-            ctx.fill();
-          }
-
-          // Thân
-          ctx.fillStyle = classId === 'knight' ? '#94a3b8' : classId === 'rogue' ? '#334155' : classId === 'mage' ? '#7c3aed' : '#4ade80';
-          if (isHitFlash) ctx.fillStyle = '#ffffff';
-          ctx.fillRect(-6, bodyY - 4, 12, 12);
-
-          // Thắt lưng / Chi tiết áo
-          if (classId === 'knight') {
-            ctx.fillStyle = '#cbd5e1'; ctx.fillRect(-4, bodyY, 8, 4); // Cầu vai ngực
-            ctx.fillStyle = '#334155'; ctx.fillRect(-6, bodyY + 6, 12, 2);
-          } else if (classId === 'rogue') {
-            ctx.fillStyle = '#0f172a'; ctx.fillRect(-6, bodyY + 2, 12, 2); // Thắt lưng chéo
-          } else if (classId === 'archer') {
-            ctx.fillStyle = '#78350f'; ctx.fillRect(-6, bodyY + 4, 12, 3); // Thắt lưng da
-            ctx.fillStyle = '#fbbf24'; ctx.fillRect(-2, bodyY + 3, 4, 4);
-          } else if (classId === 'mage') {
-            ctx.fillStyle = '#fbbf24'; ctx.fillRect(-2, bodyY + 2, 4, 4); // Ngọc trước ngực
-          }
-
-          // Đầu
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.roundRect ? ctx.roundRect(-8, headY - 10, 16, 14, 3) : ctx.fillRect(-8, headY - 10, 16, 14);
-          ctx.fill();
-
-          // Mắt
-          ctx.fillStyle = '#111827'; ctx.fillRect(-4, headY - 6, 10, 4);
-          ctx.fillStyle = classId === 'knight' ? '#fbbf24' : '#38bdf8'; ctx.fillRect(-2, headY - 5, 4, 2);
-
-          // Phụ kiện Đầu / Mặt
-          if (classId === 'knight') {
-            // Mũ bảo hiểm sắt
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillRect(-9, headY - 12, 18, 6); // Đỉnh mũ
-            ctx.fillRect(-9, headY - 6, 4, 10); // Che má trái
-            ctx.fillRect(5, headY - 6, 4, 10); // Che má phải
-            ctx.fillRect(-5, headY - 1, 10, 5); // Che cằm
-            ctx.fillStyle = '#cbd5e1'; ctx.fillRect(-2, headY - 14, 4, 4); // Chóp nón
-          } else if (classId === 'rogue') {
-            // Khăn trùm đỏ che cằm
-            ctx.fillStyle = '#ef4444';
-            ctx.fillRect(-8, headY - 1, 16, 6);
-            ctx.fillRect(-9, headY + 2, 6, 8); // Đuôi khăn rủ xuống
-          } else if (classId === 'mage') {
-            // Mũ phù thuỷ
-            ctx.fillStyle = '#4c1d95';
-            ctx.beginPath(); ctx.moveTo(-12, headY - 8); ctx.lineTo(12, headY - 8); ctx.lineTo(0, headY - 24); ctx.fill();
-            ctx.fillStyle = '#fbbf24'; ctx.fillRect(-4, headY - 10, 8, 2); // Vành mũ
-          } else if (classId === 'archer') {
-            // Nón Robin Hood
-            ctx.fillStyle = '#166534';
-            ctx.beginPath(); ctx.moveTo(-10, headY - 8); ctx.lineTo(10, headY - 8); ctx.lineTo(0, headY - 16); ctx.fill();
-            ctx.fillStyle = '#ef4444'; ctx.fillRect(-2, headY - 20, 2, 6); // Lông chim
-          }
-
-          // Tay phải & Vũ khí
-          if (state !== 'dead') {
-            ctx.save();
-            ctx.translate(2, bodyY - 1);
-            ctx.rotate(armRot);
-
-            ctx.fillStyle = classId === 'knight' ? '#64748b' : color;
-            ctx.fillRect(-1, -1, 8, 4); // Cánh tay
-            ctx.translate(8, 0);
-            ctx.fillStyle = classId === 'knight' ? '#475569' : '#fca5a5'; // Bàn tay / Bao tay thép
-            ctx.fillRect(-2, -2, 4, 4);
-
-            if (weapon && state !== 'roll') {
-              ctx.fillStyle = weapon.color || '#cbd5e1';
-              ctx.rotate(Math.PI / 8);
-
-              if (weapon.id === 'wooden_bow') {
-                // Vẽ cung
-                ctx.beginPath();
-                ctx.arc(0, 0, 14, -Math.PI / 2, Math.PI / 2);
-                ctx.strokeStyle = weapon.color || '#cbd5e1'; ctx.lineWidth = 3; ctx.stroke();
-                // Dây cung
-                ctx.beginPath(); ctx.moveTo(0, -14);
-                if (state === 'attack') { ctx.lineTo(-8, 0); } else { ctx.lineTo(0, 0); }
-                ctx.lineTo(0, 14);
-                ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; ctx.stroke();
-                // Mũi tên đang nạp
-                if (state === 'attack') {
-                  ctx.fillStyle = '#cbd5e1'; ctx.fillRect(-8, -1, 18, 2);
-                  ctx.fillStyle = '#ef4444'; ctx.fillRect(10, -2, 4, 4); // Đầu mũi tên
-                }
-              } else if (weapon.id === 'magic_staff') {
-                // Trượng phép
-                ctx.fillStyle = '#78350f'; ctx.fillRect(-2, -12, 4, 28);
-                ctx.fillStyle = '#38bdf8';
-                ctx.beginPath(); ctx.arc(0, -14, state === 'attack' ? 6 : 4, 0, Math.PI * 2); ctx.fill();
-                if (state === 'attack') {
-                  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, -14, 3, 0, Math.PI * 2); ctx.fill();
-                }
-              } else if (weapon.type === 'melee') {
-                ctx.fillRect(0, -12, 4, 24); // Kiếm
-                ctx.fillStyle = '#1e293b'; ctx.fillRect(-2, -2, 8, 4);
-              } else {
-                ctx.fillRect(0, -2, 14, 4); // Súng
-                ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, 4, 6);
-              }
-
-              if (isKnightSkill) {
-                ctx.translate(0, 12);
-                ctx.fillStyle = weapon.color || '#cbd5e1';
-                if (weapon.type === 'melee') ctx.fillRect(0, -12, 4, 24);
-                else ctx.fillRect(0, -2, 14, 4);
-              }
-            }
-            ctx.restore();
-
-            // Tay trái cầm khiên (Knight)
-            if (classId === 'knight' && state !== 'roll') {
-              ctx.save();
-              ctx.translate(-6, bodyY);
-              ctx.fillStyle = '#64748b'; ctx.fillRect(-1, -6, 4, 12); // Khiên sườn
-              ctx.fillStyle = '#cbd5e1'; ctx.fillRect(-2, -2, 6, 4); // Thập tự trên khiên
-              ctx.restore();
-            }
-
-            // Vết chém (Melee)
-            if (state === 'attack' && weapon && weapon.type === 'melee' && weapon.id !== 'magic_staff') {
-              const atkProgress = Math.min(1.0, (performance.now() - (player.lastAttackTime || 0)) / 200);
-              if (atkProgress < 0.8) {
-                ctx.save(); ctx.beginPath();
-                ctx.arc(0, 0, 30, -Math.PI / 2 - 0.5, -Math.PI / 2 + atkProgress * Math.PI + 0.5);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'; ctx.lineWidth = 4 * (1 - atkProgress); ctx.stroke();
-                if (isKnightSkill) {
-                  ctx.beginPath(); ctx.arc(0, 15, 30, -Math.PI / 2 - 0.5, -Math.PI / 2 + atkProgress * Math.PI + 0.5);
-                  ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)'; ctx.lineWidth = 4 * (1 - atkProgress); ctx.stroke();
-                }
-                ctx.restore();
-              }
-            }
-          }
-
-          if (state === 'roll') {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; ctx.beginPath(); ctx.arc(-10 * facing, 5, 8, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; ctx.beginPath(); ctx.arc(-20 * facing, 5, 6, 0, Math.PI * 2); ctx.fill();
-          }
-
-          ctx.restore();
-        };
-
         // Nếu ngắm chuột ở bên trái -> quay trái
         const angle = player.angle || 0;
         let aimFacing = 1;
@@ -1212,9 +1223,48 @@ export const GameCanvas: React.FC = () => {
         if (player.animState === 'walk') aimFacing = player.facingDirection || 1; // Ưu tiên hướng di chuyển khi chạy
         if (player.animState === 'attack') aimFacing = Math.abs(angle) > Math.PI / 2 ? -1 : 1; // Khi bắn ép quay theo hướng đạn
 
-        drawPixelChibi(getPlayerColor(player.classId || 'knight'), player.animState || 'idle', aimFacing, performance.now(), player.classId || 'knight');
+        drawPlayerChibi(
+          ctx, 
+          player, 
+          getPlayerColor(player.classId || 'knight'), 
+          player.animState || 'idle', 
+          aimFacing, 
+          performance.now(), 
+          player.classId || 'knight',
+          weapon,
+          isKnightSkill,
+          isHitFlash
+        );
 
         ctx.restore();
+
+        // --- VẼ HIỆU ỨNG WHIRLWIND BERSERKER ---
+        const isWhirlwind = (player as any).isWhirlwind && player.skillActiveUntil && performance.now() < player.skillActiveUntil;
+        if (isWhirlwind) {
+          const spinAngle = performance.now() / 50; // Xoay cực nhanh
+          ctx.save();
+          ctx.translate(player.x, player.y);
+          ctx.rotate(spinAngle);
+          
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)'; // Đỏ trong suốt
+          ctx.lineWidth = 15;
+          ctx.arc(0, 0, player.radius + 20, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Hai vệt kiếm sắc
+          ctx.beginPath();
+          ctx.strokeStyle = '#f87171';
+          ctx.lineWidth = 3;
+          ctx.arc(0, 0, player.radius + 30, 0, Math.PI);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(0, 0, player.radius + 15, Math.PI, Math.PI * 2);
+          ctx.stroke();
+          
+          ctx.restore();
+        }
 
         // --- VẼ ĐƯỜNG KIẾM MELEE SWING ARCH (BROADSWORD EFFECT) ---
         const swingActive = (player as any).meleeSwingActive;
@@ -1341,7 +1391,8 @@ export const GameCanvas: React.FC = () => {
         ctx.fillStyle = dn.color;
         ctx.font = dn.isCrit ? 'bold 15px Courier New' : '12px Courier New';
         ctx.textAlign = 'center';
-        ctx.fillText(dn.value.toString() + (dn.isCrit ? '!' : ''), dn.x, dn.y);
+        const displayString = dn.text ? dn.text : (dn.value.toString() + (dn.isCrit ? '!' : ''));
+        ctx.fillText(displayString, dn.x, dn.y);
       });
 
       ctx.restore();
@@ -1360,6 +1411,10 @@ export const GameCanvas: React.FC = () => {
       case 'knight': return '#3b82f6'; // Xanh dương kỵ sĩ
       case 'rogue': return '#64748b';  // Xám đá sát thủ
       case 'mage': return '#a855f7';   // Tím pháp sư
+      case 'summoner': return '#14b8a6'; // Xanh ngọc (Teal) triệu hồi sư
+      case 'paladin': return '#facc15';  // Vàng kim (Gold)
+      case 'berserker': return '#9f1239'; // Đỏ thẫm (Crimson)
+      case 'ninja': return '#0f172a';    // Tím than / đen
       default: return '#3b82f6';
     }
   };

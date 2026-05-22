@@ -56,7 +56,7 @@ export function runRoomSystem(_delta: number) {
     transitioned = true;
   }
 
-  if (transitioned && nextGridX >= 0 && nextGridX < 3 && nextGridY >= 0 && nextGridY < 3) {
+  if (transitioned) {
     const nextRoomId = `room_${nextGridX}_${nextGridY}`;
     const nextRoom = rooms.find(r => r.id === nextRoomId);
 

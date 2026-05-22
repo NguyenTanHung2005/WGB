@@ -49,3 +49,26 @@ Tài liệu này ghi chép lại các bước triển khai của dự án theo t
 - Sửa lỗi nghiêm trọng (Race Condition) khiến map không mở cửa khi tiêu diệt hết quái vật do vòng lặp sinh quái đếm sai wave.
 - Thêm cơ chế **Nam châm (Magnet)**: Vàng, Máu, Mana sẽ tự động hút về phía người chơi nếu đứng trong khoảng cách gần (150px).
 - Nâng cấp `PauseMenu`: Bổ sung nút Thoát Game (Về Menu chính).
+
+## Phase 8: Làm mới Lớp Nhân Vật & Hệ thống Tài Nguyên (Class Rework & No Mana)
+- Loại bỏ hoàn toàn Hệ thống Mana: Kỹ năng và vũ khí không còn tiêu tốn Mana. Giao diện cũng loại bỏ thanh Mana.
+- Rework lại lớp Pháp Sư (Mage) và các kỹ năng của các nhân vật khác. Kỹ năng nay chỉ phụ thuộc vào thời gian hồi chiêu (Cooldown).
+- Bổ sung `templateId` cho hệ thống Quái Vật, giúp phân biệt rõ hình ảnh các loại quái (Slime, Skeleton, Goblin). Cập nhật ngoại hình và animation riêng cho quái.
+
+## Phase 9: Sửa Lỗi Nghiêm Trọng (Bug Fixes)
+- Khắc phục lỗi "Bị kẹt cứng khi qua cửa phòng": Sửa logic sinh quái vật và vị trí spawn nhân vật khi đi qua cổng.
+- Khắc phục lỗi "Nhân vật bị kẹt khi tấn công": Sửa lỗi strokeStyle trong GameCanvas khiến game bị treo (Freeze) khi Mage đánh trúng mục tiêu.
+
+## Phase 10: Đại tu Giao Diện Tối Giản & Trải nghiệm (UI Revamp & UX)
+- Phóng to Kích thước Bản đồ (Căn phòng hiện tại là 2000x1500) và mở rộng cổng (Gate 200px) giúp màn hình luôn phủ kín gạch nền, mang lại trải nghiệm Dungeon rộng lớn hơn.
+- Giao diện (HUD) được quy hoạch gọn gàng: Toàn bộ Thanh Máu, Giáp, Kỹ năng chuyển lên Góc Trái - Trên. Minimap được thu nhỏ và đưa xuống Góc Phải - Dưới.
+- Auto-Attack toàn diện: Không cần bấm chuột trái. Nhân vật tự động vung vũ khí liên tục.
+
+## Phase 11: Ngoại Hình Độc Quyền & Giao Diện Kỹ Năng (Character Graphics & Skill UI)
+- Tái cấu trúc (Refactor) hệ thống vẽ Pixel Chibi: Chuyển toàn bộ logic vẽ nhân vật từ `GameCanvas.tsx` sang hệ thống mới tại `src/graphics/drawPlayer.ts`.
+- Hoàn thiện hình dáng Độc quyền cho từng Class: 
+  - Kỵ sĩ (Knight): Giáp sắt khối, mũ bảo hiểm che mặt.
+  - Sát thủ (Rogue): Đồ da trùm đầu, có bóng mờ (shadow trail) khi di chuyển.
+  - Pháp sư (Mage): Thân tam giác, đầu tròn, nón phù thuỷ chóp nhọn vành rộng theo đúng bản phác thảo.
+- Tùy chỉnh Giao diện Kỹ năng (Skill UI): HUD cập nhật icon kỹ năng (Khiên, Gió, Sấm Sét) và màu sắc vòng Cooldown tương ứng với từng Class.
+- Hoàn thiện Visual cho Skill: Tia sét dích dắc cho Mage, quầng sáng khiên cho Knight.

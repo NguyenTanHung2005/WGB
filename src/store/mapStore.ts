@@ -13,22 +13,38 @@ interface MapState {
 }
 
 // Chiều rộng và chiều cao phòng cố định
-export const ROOM_WIDTH = 900;
-export const ROOM_HEIGHT = 700;
+export const ROOM_WIDTH = 2000;
+export const ROOM_HEIGHT = 1500;
 export const WALL_THICKNESS = 40;
-export const GATE_WIDTH = 120;
+export const GATE_WIDTH = 200;
 
 export const useMapStore = create<MapState>((set) => ({
   rooms: [],
   currentRoomId: null,
 
   generateDungeon: () => {
-    // 1. Tạo lưới 3x3 các phòng rỗng
-
+    // 1. Số lượng phòng ngẫu nhiên từ 4 đến 10
+    const targetRoomCount = Math.floor(Math.random() * 7) + 4; // 4 to 10
     
-    // DFS để tạo đường đi kết nối tất cả các phòng
-    const visited = Array(3).fill(false).map(() => Array(3).fill(false));
-    const connections: { [key: string]: RoomGates } = {};
+    // Sử dụng không gian ảo 10x10, bắt đầu từ (5, 5)
+    const startX = 5;
+    const startY = 5;
+    
+    interface RoomNode {
+      x: number;
+      y: number;
+      gates: RoomGates;
+    }
+    
+    const roomsMap: Map<string, RoomNode> = new Map();
+    const getRoomId = (gx: number, gy: number) => `room_${gx}_${gy}`;
+    
+    // Khởi tạo phòng start
+    roomsMap.set(getRoomId(startX, startY), {
+      x: startX,
+      y: startY,
+      gates: { north: false, south: false, east: false, west: false }
+    });
     
     const directions = [
       { dx: 0, dy: -1, dir: 'north', opp: 'south' }, // Lên
@@ -37,115 +53,85 @@ export const useMapStore = create<MapState>((set) => ({
       { dx: -1, dy: 0, dir: 'west', opp: 'east' }    // Trái
     ];
 
-    const getRoomId = (gx: number, gy: number) => `room_${gx}_${gy}`;
-
-    const dfs = (x: number, y: number) => {
-      visited[y][x] = true;
-      const roomId = getRoomId(x, y);
-      if (!connections[roomId]) {
-        connections[roomId] = { north: false, south: false, east: false, west: false };
+    // Thuật toán Random Tree Expansion để tạo các phòng
+    while (roomsMap.size < targetRoomCount) {
+      // Chọn ngẫu nhiên 1 phòng đã tạo để làm điểm mở rộng
+      const existingRooms = Array.from(roomsMap.values());
+      const baseRoom = existingRooms[Math.floor(Math.random() * existingRooms.length)];
+      
+      // Chọn ngẫu nhiên một hướng
+      const d = directions[Math.floor(Math.random() * directions.length)];
+      const nx = baseRoom.x + d.dx;
+      const ny = baseRoom.y + d.dy;
+      
+      const newRoomId = getRoomId(nx, ny);
+      
+      // Nếu vị trí này chưa có phòng, tạo phòng mới và kết nối cửa
+      if (!roomsMap.has(newRoomId)) {
+        roomsMap.set(newRoomId, {
+          x: nx,
+          y: ny,
+          gates: { north: false, south: false, east: false, west: false }
+        });
+        
+        // Mở cửa 2 chiều
+        baseRoom.gates[d.dir as keyof RoomGates] = true;
+        roomsMap.get(newRoomId)!.gates[d.opp as keyof RoomGates] = true;
       }
+    }
 
-      // Xáo trộn hướng để ngẫu nhiên hóa đường đi
-      const shuffledDirs = [...directions].sort(() => Math.random() - 0.5);
-
-      for (const d of shuffledDirs) {
-        const nx = x + d.dx;
-        const ny = y + d.dy;
-
-        if (nx >= 0 && nx < 3 && ny >= 0 && ny < 3 && !visited[ny][nx]) {
-          const nextRoomId = getRoomId(nx, ny);
-          
-          // Kích hoạt cửa kết nối 2 chiều
-          connections[roomId][d.dir as keyof RoomGates] = true;
-          if (!connections[nextRoomId]) {
-            connections[nextRoomId] = { north: false, south: false, east: false, west: false };
-          }
-          connections[nextRoomId][d.opp as keyof RoomGates] = true;
-
-          dfs(nx, ny);
-        }
-      }
-    };
-
-    // Bắt đầu DFS từ phòng trung tâm (1, 1)
-    dfs(1, 1);
-
-    // Xác định khoảng cách từ (1, 1) đến các phòng để chọn Boss Room (phòng xa nhất)
+    // Xác định khoảng cách từ Start để chọn Boss Room (phòng xa nhất)
     let maxDist = -1;
-    let bossX = 0;
-    let bossY = 0;
+    let bossId = '';
     
-    for (let y = 0; y < 3; y++) {
-      for (let x = 0; x < 3; x++) {
-        const dist = Math.abs(x - 1) + Math.abs(y - 1);
-        if (dist > maxDist) {
-          maxDist = dist;
-          bossX = x;
-          bossY = y;
-        }
+    roomsMap.forEach((room, id) => {
+      if (id === getRoomId(startX, startY)) return;
+      const dist = Math.abs(room.x - startX) + Math.abs(room.y - startY);
+      if (dist > maxDist) {
+        maxDist = dist;
+        bossId = id;
       }
-    }
-
-    // Nếu phòng xa nhất trùng với (1,1) (không thể xảy ra), chọn (0,0) làm mặc định
-    if (bossX === 1 && bossY === 1) {
-      bossX = 0;
-      bossY = 0;
-    }
+    });
 
     // Phân bổ loại phòng
-    // (1, 1) -> start
-    // (bossX, bossY) -> boss
-    // Các phòng khác: chọn 1 phòng làm Shop, 1 phòng làm Chest, còn lại làm Combat
-    const otherRoomsCoords: [number, number][] = [];
-    for (let y = 0; y < 3; y++) {
-      for (let x = 0; x < 3; x++) {
-        if ((x === 1 && y === 1) || (x === bossX && y === bossY)) continue;
-        otherRoomsCoords.push([x, y]);
-      }
-    }
+    // (startX, startY) -> start
+    // (bossId) -> boss
+    // Các phòng khác: chọn 1 Shop, 1 Chest (nếu có đủ), còn lại Combat
+    const otherRoomIds = Array.from(roomsMap.keys()).filter(id => id !== getRoomId(startX, startY) && id !== bossId);
+    otherRoomIds.sort(() => Math.random() - 0.5);
     
-    // Trộn ngẫu nhiên các phòng còn lại
-    otherRoomsCoords.sort(() => Math.random() - 0.5);
-    
-    const shopCoord = otherRoomsCoords.pop()!;
-    const chestCoord = otherRoomsCoords.pop()!;
+    const shopId = otherRoomIds.length > 0 ? otherRoomIds.pop() : null;
+    const chestId = otherRoomIds.length > 0 ? otherRoomIds.pop() : null;
 
-
-    const getRoomType = (x: number, y: number): RoomType => {
-      if (x === 1 && y === 1) return 'start';
-      if (x === bossX && y === bossY) return 'boss';
-      if (x === shopCoord[0] && y === shopCoord[1]) return 'shop';
-      if (x === chestCoord[0] && y === chestCoord[1]) return 'chest';
+    const getRoomType = (id: string): RoomType => {
+      if (id === getRoomId(startX, startY)) return 'start';
+      if (id === bossId) return 'boss';
+      if (id === shopId) return 'shop';
+      if (id === chestId) return 'chest';
       return 'combat';
     };
 
     const newRooms: Room[] = [];
-
-    for (let y = 0; y < 3; y++) {
-      for (let x = 0; x < 3; x++) {
-        const rId = getRoomId(x, y);
-        const rType = getRoomType(x, y);
-        
-        newRooms.push({
-          id: rId,
-          gridX: x,
-          gridY: y,
-          type: rType,
-          state: rType === 'start' ? 'active' : 'unvisited',
-          width: ROOM_WIDTH,
-          height: ROOM_HEIGHT,
-          gates: connections[rId] || { north: false, south: false, east: false, west: false },
-          enemiesSpawned: false,
-          waveCount: 0,
-          maxWaves: rType === 'combat' ? (2 + Math.floor(Math.random() * 4)) : (rType === 'boss' ? 1 : 0)
-        });
-      }
-    }
+    roomsMap.forEach((node, id) => {
+      const rType = getRoomType(id);
+      newRooms.push({
+        id: id,
+        gridX: node.x,
+        gridY: node.y,
+        type: rType,
+        state: rType === 'start' ? 'active' : 'unvisited',
+        width: ROOM_WIDTH,
+        height: ROOM_HEIGHT,
+        gates: node.gates,
+        enemiesSpawned: false,
+        waveCount: 0,
+        maxWaves: rType === 'combat' ? (2 + Math.floor(Math.random() * 4)) : (rType === 'boss' ? 1 : 0)
+      });
+    });
 
     set({
       rooms: newRooms,
-      currentRoomId: getRoomId(1, 1)
+      currentRoomId: getRoomId(startX, startY)
     });
   },
 

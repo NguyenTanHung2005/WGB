@@ -46,6 +46,7 @@ export const MenuScreen: React.FC = () => {
       angle: 0,
       activeWeaponIndex: 0,
       weapons: defaultWeapons,
+      classId: chosenClass.id,
       statusEffects: [],
       lastAttackTime: 0,
       lastSkillUsedTime: 0

@@ -12,10 +12,10 @@ export function runCombatSystem(_delta: number) {
   const maxShield = player.maxShield || 0;
   const currentShield = player.shield || 0;
 
-  if (currentShield < maxShield && currentTime - lastHitTime >= 3000) {
-    // Mỗi 1 giây (1000ms) hồi 1 giáp
+  if (currentShield < maxShield && currentTime - lastHitTime >= 6000) {
+    // Mỗi 3 giây (3000ms) hồi 1 giáp (Hardcore Dark Fantasy)
     const lastShieldRegenTime = (player as any).lastShieldRegenTime || 0;
-    if (currentTime - lastShieldRegenTime >= 1000) {
+    if (currentTime - lastShieldRegenTime >= 3000) {
       updatePlayer({
         shield: Math.min(maxShield, currentShield + 1),
         ...({ lastShieldRegenTime: currentTime } as any)
@@ -215,6 +215,11 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
       updatePlayer({ skillActiveUntil: undefined });
     }
 
+    // Buff Relic: Berserker Ring (+50% sát thương khi HP < 30%)
+    if (player.relics?.includes('berserker_ring') && player.hp < player.maxHp * 0.3) {
+      finalDamage = Math.floor(finalDamage * 1.5);
+    }
+
     // 1. Quét kẻ địch bị chém trúng
     enemies.forEach(enemy => {
       const ex = enemy.x - player.x;
@@ -239,6 +244,23 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
             updateData.vy = Math.sin(enemyAngle) * 4;
           }
           updateEnemy(enemy.id, updateData);
+
+          if (nextHp <= 0) {
+            // Buff Relic: Vampire Tooth (5% hồi 1 HP khi giết địch)
+            if (player.relics?.includes('vampire_tooth') && Math.random() < 0.05) {
+              updatePlayer({ hp: Math.min(player.maxHp, player.hp + 1) });
+              addDamageNumber({
+                id: `vampire_heal_${Date.now()}_${Math.random()}`,
+                x: player.x,
+                y: player.y - 20,
+                value: 1,
+                color: '#22c55e', // Xanh lá hồi máu
+                isCrit: false,
+                createdAt: currentTime,
+                lifespan: 800
+              });
+            }
+          }
 
           // Hiển thị số sát thương
           addDamageNumber({
@@ -329,6 +351,11 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
     if (isRogueSkillActive) {
       finalDamage = Math.floor(weapon.damage * 1.5);
       updatePlayer({ skillActiveUntil: undefined });
+    }
+
+    // Buff Relic: Berserker Ring (+50% sát thương khi HP < 30%)
+    if (player.relics?.includes('berserker_ring') && player.hp < player.maxHp * 0.3) {
+      finalDamage = Math.floor(finalDamage * 1.5);
     }
 
     const spawnBullet = (angleOffset: number, positionOffsetSide: number = 0) => {

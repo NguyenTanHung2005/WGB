@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type GamePhase = 'menu' | 'playing' | 'paused' | 'game_over' | 'victory';
+export type GamePhase = 'menu' | 'playing' | 'paused' | 'game_over' | 'victory' | 'cutscene_ending';
 
 interface GameState {
   phase: GamePhase;

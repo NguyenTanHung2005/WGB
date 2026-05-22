@@ -6,6 +6,7 @@ import { GameCanvas } from './components/GameCanvas';
 import { GameOverScreen } from './components/GameOverScreen';
 import { HUDOverlay } from './components/HUDOverlay';
 import { PauseMenu } from './components/PauseMenu';
+import { EndingCutscene } from './components/EndingCutscene';
 import { HelpCircle } from 'lucide-react';
 import './overlay.css';
 
@@ -29,13 +30,16 @@ function App() {
 
   return (
     <div className="app-fullscreen-wrapper">
-      {(phase === 'playing' || phase === 'paused') && (
+      {(phase === 'playing' || phase === 'paused' || phase === 'cutscene_ending') && (
         <div className="game-canvas-container">
           {/* Game Canvas Toàn màn hình */}
           <GameCanvas />
           
           {/* HUD Overlay Nổi */}
-          <HUDOverlay />
+          {phase !== 'cutscene_ending' && <HUDOverlay />}
+
+          {/* Cutscene Overlay */}
+          {phase === 'cutscene_ending' && <EndingCutscene />}
         </div>
       )}
 

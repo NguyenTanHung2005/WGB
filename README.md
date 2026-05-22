@@ -7,7 +7,19 @@ Một tựa game hành động roguelite nhịp độ nhanh được xây dựng
 - **Auto-Attack Combat**: Hệ thống tự động ngắm bắn thông minh giúp bạn tập trung 100% vào kỹ năng di chuyển (WASD) và né tránh.
 - **Hầm Ngục Tạo Ngẫu Nhiên (Procedural Generation)**: Mỗi lần chơi là một trải nghiệm mới với hệ thống map grid và sinh quái tự động tăng độ khó theo chiều sâu.
 - **Render Siêu Mượt bằng Canvas 2D**: Đồ hoạ Procedural Pixel Chibi kết hợp Particle Systems cho hiệu ứng cháy nổ rực rỡ ở 60 FPS.
-- **Giao Diện HUD Hiện Đại**: Bố cục tối giản với Mini-map và hệ thống icon Kỹ năng riêng biệt theo phong cách Glassmorphism.
+- **Hệ Thống Relic (Thánh Tích)**: Thu thập các bảo vật vĩnh viễn (Hermes Boots, Vampire Tooth, Berserker Ring) để liên tục cường hóa sức mạnh trong suốt lượt chơi.
+- **Pet Đồng Hành (Fairy Companion)**: Tiểu tinh linh ánh sáng bay lượn quanh người chơi và tự động nhắm bắn hỗ trợ hoả lực.
+- **Hệ Thống Lò Rèn (Anvil)**: Cường hoá vũ khí của bạn bằng Vàng tại các Cửa hàng để gia tăng sát thương (VD: Sword +1).
+- **Hệ Sinh Thái Quái Vật Đa Dạng**: Từ Skeleton cầm gươm/cung, Goblin, Dơi tự sát cho đến **Tử Linh Sư (Necromancer)** liên tục gọi đệ bảo vệ.
+- **Quái Vật Tinh Anh (Elite Enemies)**: Đối đầu với những phiên bản quái vật mang thuộc tính Nguyên tố (Lửa, Độc, Băng) có sức mạnh vượt trội và hiệu ứng trạng thái riêng biệt.
+- **Phong Cách Dark Fantasy & Đồ hoạ Retro Pixel/Dots**: Tông màu tối tăm u ám (Vignette), nhiễu hạt (Film Grain) và tạo hình nhân vật dạng khối vuông Pixel lấy cảm hứng từ thể loại kinh dị sinh tồn.
+
+## Tiến độ Dự Án
+- ✅ Chuyển đổi đồ hoạ sang Dark Fantasy Pixel-Art (Dots/Blocky).
+- ✅ Chuyển đổi cốt truyện, class nhân vật và quái vật sang thể loại tăm tối (Fear & Hunger / Dark Souls).
+- ✅ Loại bỏ Glassmorphism, thay thế bằng Giao diện Vuông vức nguyên thủy đẫm máu.
+- ✅ Cân bằng Sinh tồn Hardcore (Giảm tỷ lệ hồi phục và Tăng độ khó).
+- ⬜ Hệ thống Boss Mechanics chi tiết và các Cutscene.
 
 ## Cài đặt (Installation)
 Yêu cầu Node.js cài sẵn trên máy tính.

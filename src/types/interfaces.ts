@@ -10,6 +10,15 @@ export interface Weapon {
   projectileSpeed?: number; // Cho súng
   range?: number;         // Cho melee hoặc giới hạn tầm đạn
   color?: string;         // Vẽ tạm
+  upgradeLevel?: number;  // Cấp độ cường hoá (Mặc định 0)
+}
+
+// --- RELIC ---
+export interface Relic {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;           // Dùng Emoji tạm nếu chưa có sprite
 }
 
 // --- CHARACTER CLASS ---
@@ -26,7 +35,7 @@ export interface CharacterClass {
 
 // --- ENTITY ---
 export type EntityType = 'player' | 'enemy' | 'boss' | 'ally';
-export type AIPattern = 'chase' | 'shoot' | 'charge' | 'summon';
+export type AIPattern = 'chase' | 'shoot' | 'charge' | 'summon' | 'follow';
 export type AnimationState = 'idle' | 'walk' | 'attack' | 'roll' | 'dead';
 
 export interface Entity {
@@ -52,10 +61,17 @@ export interface Entity {
   aiPattern?: AIPattern;  // Chỉ enemy/ally
   templateId?: string;    // Dùng cho enemy/ally để vẽ hình
   lastAIShootTime?: number; // Cho quái bắn xa
+  lastSummonTime?: number; // Cho quái gọi đệ
   damage?: number;        // Chỉ enemy/boss/ally mới có, hoặc sát thương va chạm
   color?: string;         // Vẽ tạm hoặc màu quái
   statusEffects: string[];
   expireTime?: number;    // timestamp ms khi entity này tự biến mất (vd: Sói tinh linh)
+  relics?: string[];      // Mảng chứa ID của các Relic (Chỉ player)
+  
+  // Elite & Elemental
+  isElite?: boolean;
+  element?: 'fire' | 'ice' | 'poison';
+  lastDoTTime?: number;   // Dùng để tính toán sát thương độc/lửa theo thời gian
   
   // Animation & Physics
   animState?: AnimationState;
@@ -84,6 +100,7 @@ export interface Projectile {
   createdAt: number;
   piercing?: boolean;     // Có xuyên thấu không?
   piercedEntities?: string[]; // Danh sách các ID đã xuyên qua
+  element?: 'fire' | 'ice' | 'poison'; // Hiệu ứng nguyên tố
 }
 
 // --- ROOM ---
@@ -142,6 +159,7 @@ export interface DamageNumber {
   createdAt: number;
   lifespan: number;
   text?: string;
+  alpha?: number;
 }
 
 export interface ExplosiveBarrel {
@@ -199,6 +217,14 @@ export interface ShopItem {
   purchased: boolean;
 }
 
+export interface Anvil {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  cost: number;
+  used: boolean;
+}
 
 export interface HealthPickup {
   id: string;
@@ -216,14 +242,13 @@ export interface GoldPickup {
   amount: number;
 }
 
-export type ItemType = 'golden_apple' | 'wind_boots' | 'ring_of_power' | 'energy_shield';
-
-export interface ItemPickup {
+// --- RELIC PICKUP ---
+export interface RelicPickup {
   id: string;
   x: number;
   y: number;
   radius: number;
-  itemType: ItemType;
+  relicId: string; // Trỏ tới ID trong file relics.ts
 }
 
 // --- GROUND WEAPON ---

@@ -6,6 +6,7 @@ import { runAISystem } from '../systems/aiSystem';
 import { runCollisionSystem } from '../systems/collisionSystem';
 import { runRoomSystem } from '../systems/roomSystem';
 import { runVFXSystem } from '../systems/vfxSystem';
+import { runStatusEffectsSystem } from '../systems/statusEffectSystem';
 
 const TICK_MS = 1000 / 60; // 60 FPS (~16.67ms)
 
@@ -31,6 +32,10 @@ export function useGameLoop() {
           runMovementSystem(clampedDelta);
           runCollisionSystem();
           runCombatSystem(clampedDelta);
+          runStatusEffectsSystem(clampedDelta);
+          runVFXSystem(clampedDelta);
+        } else if (phase === 'cutscene_ending') {
+          // Khi đang ở cutscene, chỉ chạy VFX để hiệu ứng vẫn mượt mà
           runVFXSystem(clampedDelta);
         }
       }

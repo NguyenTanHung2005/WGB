@@ -8,7 +8,7 @@ let isWaitingForWave = false;
 export function runRoomSystem(_delta: number) {
   const { 
     player, updatePlayer, enemies, addEnemy, clearRoomEntities, spawnRoomElements,
-    setPortal, addChest 
+    addChest 
   } = useEntityStore.getState();
 
   const { 
@@ -119,13 +119,8 @@ export function runRoomSystem(_delta: number) {
         addScore(currentRoom.type === 'boss' ? 1000 : 100);
 
         if (currentRoom.type === 'boss') {
-          // BOSS CHẾT -> Spawn Cổng dịch chuyển chiến thắng ở giữa phòng
-          setPortal({
-            x: ROOM_WIDTH / 2,
-            y: ROOM_HEIGHT / 2,
-            radius: 25,
-            active: true
-          });
+          // BOSS CHẾT -> Chuyển sang Cutscene
+          useGameStore.getState().setPhase('cutscene_ending');
         } else {
           // COMBAT CLEAR -> Rơi rương kho báu phần thưởng
           addChest({
@@ -216,19 +211,28 @@ export function runRoomSystem(_delta: number) {
         attempts++;
       }
 
-      const scaledHp = Math.floor(template.maxHp * levelMultiplier);
-      const scaledDamage = Math.floor(template.damage * levelMultiplier);
+      const isElite = Math.random() < 0.15;
+      const elements: ('fire' | 'ice' | 'poison')[] = ['fire', 'ice', 'poison'];
+      const element = isElite ? elements[Math.floor(Math.random() * elements.length)] : undefined;
+
+      const eliteHpMod = isElite ? 2.5 : 1;
+      const eliteDmgMod = isElite ? 1.5 : 1;
+      const eliteRadMod = isElite ? 1.3 : 1;
+
+      const scaledHp = Math.floor(template.maxHp * levelMultiplier * eliteHpMod);
+      const scaledDamage = Math.floor(template.damage * levelMultiplier * eliteDmgMod);
+      const scaledRadius = template.radius * eliteRadMod;
       
       // Tốc độ tỉ lệ nghịch với kích thước (bán kính) - Quái to thì chậm
       // Giả sử bán kính chuẩn (trung bình) là 15
-      const scaledSpeed = template.speed * (15 / template.radius);
+      const scaledSpeed = template.speed * (15 / scaledRadius);
 
       addEnemy({
         id: `enemy_${Date.now()}_${i}_${Math.random()}`,
         type: 'enemy',
         x: spawnX,
         y: spawnY,
-        radius: template.radius,
+        radius: scaledRadius,
         vx: 0,
         vy: 0,
         hp: scaledHp,
@@ -241,6 +245,9 @@ export function runRoomSystem(_delta: number) {
         color: template.color,
         statusEffects: [],
         lastAttackTime: 0,
+        isElite,
+        element,
+        lastDoTTime: 0,
         ...({ lastAIShootTime: 0 } as any)
       });
 

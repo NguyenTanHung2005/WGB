@@ -14,7 +14,7 @@ export function runCollisionSystem() {
     explosiveBarrels, removeExplosiveBarrel,
     goldPickups, removeGoldPickup,
     healthPickups, removeHealthPickup,
-    itemPickups, removeItemPickup,
+    relicPickups, removeRelicPickup,
     spikeTraps,
     portal, setCameraShake,
     addGoldPickup, addHealthPickup
@@ -207,13 +207,36 @@ export function runCollisionSystem() {
           
           const nextHp = Math.max(0, enemy.hp - finalDmg);
           
+          let nextStatusEffects = [...(enemy.statusEffects || [])];
+          if (proj.element) {
+            const effectName = proj.element === 'fire' ? 'burning' : (proj.element === 'ice' ? 'frozen' : 'poisoned');
+            if (!nextStatusEffects.includes(effectName)) {
+              nextStatusEffects.push(effectName);
+            }
+          }
+          
           updateEnemy(enemy.id, {
             hp: nextHp,
-            hitStopUntil: isCrit ? currentTime + 80 : currentTime + 30
+            hitStopUntil: isCrit ? currentTime + 80 : currentTime + 30,
+            statusEffects: nextStatusEffects
           });
 
           if (nextHp <= 0) {
             dropLoot(enemy.x, enemy.y, true);
+            // Buff Relic: Vampire Tooth (5% hồi 1 HP khi giết địch)
+            if (player.relics?.includes('vampire_tooth') && Math.random() < 0.05) {
+              updatePlayer({ hp: Math.min(player.maxHp, player.hp + 1) });
+              addDamageNumber({
+                id: `vampire_heal_${Date.now()}_${Math.random()}`,
+                x: player.x,
+                y: player.y - 20,
+                value: 1,
+                color: '#22c55e', // Xanh lá hồi máu
+                isCrit: false,
+                createdAt: currentTime,
+                lifespan: 800
+              });
+            }
           }
 
           // Hiển thị sát thương
@@ -348,6 +371,14 @@ export function runCollisionSystem() {
               nextHp = Math.max(0, hp - finalDmg);
             }
 
+            let nextStatusEffects = [...(prev.statusEffects || [])];
+            if (proj.element) {
+              const effectName = proj.element === 'fire' ? 'burning' : (proj.element === 'ice' ? 'frozen' : 'poisoned');
+              if (!nextStatusEffects.includes(effectName)) {
+                nextStatusEffects.push(effectName);
+              }
+            }
+
             return {
               ...prev,
               hp: nextHp,
@@ -357,7 +388,8 @@ export function runCollisionSystem() {
               hitStopUntil: currentTime + 50,
               lastHitTime: currentTime,
               hitFlashActive: true,
-              hitFlashStart: currentTime
+              hitFlashStart: currentTime,
+              statusEffects: nextStatusEffects
             };
           });
 
@@ -496,67 +528,54 @@ export function runCollisionSystem() {
     }
   });
 
-  itemPickups.forEach(item => {
+  relicPickups.forEach(item => {
     const dx = player.x - item.x;
     const dy = player.y - item.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // Hút nam châm tương tự như máu và vàng
+    // Relic hút nam châm
     if (dist <= MAGNET_RADIUS && dist > player.radius + item.radius) {
       item.x += (dx / dist) * MAGNET_SPEED;
       item.y += (dy / dist) * MAGNET_SPEED;
     }
 
     if (dist <= player.radius + item.radius) {
-      // Nhặt Item
-      let buffMessage = '';
-      if (item.itemType === 'golden_apple') {
-        updatePlayer({ hp: Math.min(player.maxHp, player.hp + 2) });
-        buffMessage = '+2 HP';
-      } else if (item.itemType === 'wind_boots') {
-        updatePlayer({ speed: player.speed + 0.5 });
-        buffMessage = '+0.5 TỐC ĐỘ';
-      } else if (item.itemType === 'ring_of_power') {
-        const boostedWeapons = (player.weapons || []).map(w => ({ ...w, damage: w.damage + 1 }));
-        updatePlayer({ weapons: boostedWeapons });
-        buffMessage = '+1 ATK';
-      } else if (item.itemType === 'energy_shield') {
-        updatePlayer({ 
-          maxShield: (player.maxShield || 0) + 1,
-          shield: (player.shield || 0) + 1
-        });
-        buffMessage = '+1 MAX SHIELD';
+      // Nhặt Relic
+      const currentRelics = player.relics || [];
+      if (!currentRelics.includes(item.relicId)) {
+        updatePlayer({ relics: [...currentRelics, item.relicId] });
       }
 
-      removeItemPickup(item.id);
+      removeRelicPickup(item.id);
       
       // Hiện thông báo Text bay lên
       addDamageNumber({
-        id: `item_buff_${item.id}_${currentTime}`,
+        id: `relic_buff_${item.id}_${currentTime}`,
         x: player.x,
         y: player.y - 30,
         value: 0,
+        text: `+ ${item.relicId.replace('_', ' ').toUpperCase()}`,
         isCrit: false,
-        color: '#10b981', // Màu xanh ngọc (Emerald)
-        text: buffMessage,
+        color: '#f472b6', // Màu hồng cho Relic
+        alpha: 1.0,
         createdAt: currentTime,
-        lifespan: 1000
+        lifespan: 1500
       });
 
-      // Hạt lấp lánh màu xanh ngọc
-      for (let k = 0; k < 8; k++) {
+      // Bắn particle lấp lánh khi nhặt Relic
+      for (let k = 0; k < 15; k++) {
         addParticle({
-          id: `item_spark_${item.id}_${k}`,
+          id: `relic_spark_${currentTime}_${k}`,
           x: player.x,
           y: player.y,
-          vx: (Math.random() - 0.5) * 4,
-          vy: (Math.random() - 0.5) * 4,
-          radius: 3,
-          color: '#10b981',
+          vx: (Math.random() - 0.5) * 8,
+          vy: (Math.random() - 0.5) * 8,
+          radius: 2 + Math.random() * 2,
+          color: '#f472b6',
           alpha: 1.0,
           decay: 0.05,
           createdAt: currentTime,
-          lifespan: 300
+          lifespan: 400
         });
       }
     }

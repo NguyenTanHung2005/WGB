@@ -8,7 +8,7 @@ import { Shield, Heart, Flame, ArrowRight } from 'lucide-react';
 
 export const MenuScreen: React.FC = () => {
   const { setPhase, setSelectedClassId } = useGameStore();
-  const { setPlayer, clearRoomEntities, spawnRoomElements } = useEntityStore();
+  const { setPlayer, clearRoomEntities, spawnRoomElements, addAlly } = useEntityStore();
   const { generateDungeon } = useMapStore();
 
   const handleSelectClass = (classId: string) => {
@@ -54,13 +54,34 @@ export const MenuScreen: React.FC = () => {
 
     clearRoomEntities();
     spawnRoomElements('start');
+    
+    // Spawn Fairy Companion
+    addAlly({
+      id: 'fairy_companion',
+      type: 'ally',
+      x: 450 - 30,
+      y: 350 - 30,
+      radius: 6,
+      vx: 0,
+      vy: 0,
+      hp: 9999,
+      maxHp: 9999,
+      speed: 4,
+      angle: 0,
+      aiPattern: 'follow',
+      templateId: 'fairy',
+      statusEffects: [],
+      damage: 2,
+      color: '#fef08a'
+    });
+    
     setPhase('playing');
   };
 
   return (
-    <div className="menu-screen">
-      <div className="menu-title">Dungeon Spark</div>
-      <div className="menu-subtitle">Top-down Action Roguelike Pixel Game</div>
+    <div className="menu-screen bg-[#050505] text-[#d1d5db]">
+      <div className="menu-title font-serif text-[#991b1b] drop-shadow-[0_0_15px_rgba(153,27,27,0.8)]">Dungeon of Decay</div>
+      <div className="menu-subtitle italic text-[#78716c] mb-6">Bạn là một linh hồn bị nguyền rủa, bị ném vào hầm ngục thối rữa này.<br/>Không có ánh sáng, chỉ có máu, bóng tối và sự mục nát vô tận...</div>
 
       <div className="class-grid">
         {CHARACTER_CLASSES.map(cls => (
@@ -107,6 +128,15 @@ export const MenuScreen: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="flex justify-center mt-6">
+        <button 
+          className="px-6 py-2 bg-[#7f1d1d]/80 hover:bg-[#991b1b]/90 text-[#fca5a5] rounded-none border border-[#b91c1c] font-serif uppercase tracking-widest transition-transform hover:scale-105 shadow-[0_0_10px_rgba(185,28,28,0.5)]"
+          onClick={() => setPhase('cutscene_ending')}
+        >
+          👁️ Chấp nhận cái chết (Xem Cutscene)
+        </button>
       </div>
 
       <div className="keybinds-footer">

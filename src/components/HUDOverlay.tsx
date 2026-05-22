@@ -102,10 +102,12 @@ export const HUDOverlay: React.FC = () => {
 
         let label = '';
         let color = '#ffffff';
-        if (isVisited) {
+        if (room.type === 'boss') { 
+          label = 'B'; 
+          color = '#f43f5e'; 
+        } else if (isVisited) {
           if (room.type === 'shop') { label = 'S'; color = '#fbbf24'; }
           else if (room.type === 'chest') { label = 'C'; color = '#34d399'; }
-          else if (room.type === 'boss') { label = 'B'; color = '#f43f5e'; }
           else if (room.type === 'start') { label = 'H'; color = '#38bdf8'; }
         }
 
@@ -143,7 +145,21 @@ export const HUDOverlay: React.FC = () => {
               </div>
             )}
             
-
+            {/* Relics */}
+            {(player.relics && player.relics.length > 0) && (
+              <div className="hud-vital-box">
+                <span className="hud-vital-label" style={{ color: '#f472b6' }}>RLC</span>
+                <div className="hud-vital-icons flex gap-1">
+                  {player.relics.map(r => {
+                     let icon = '❓';
+                     if (r === 'vampire_tooth') icon = '🦷';
+                     else if (r === 'hermes_boots') icon = '🪽';
+                     else if (r === 'berserker_ring') icon = '💍';
+                     return <span key={r} className="text-sm drop-shadow-[0_0_5px_rgba(244,114,182,0.8)]" title={r.replace('_', ' ').toUpperCase()}>{icon}</span>;
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Resources: Gold & Score */}
             <div className="hud-resources">

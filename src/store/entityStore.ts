@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { 
   Entity, Projectile, VFXParticle, DamageNumber, 
-  Chest, Shrine, ShopItem, GoldPickup, HealthPickup, ItemPickup,
-  DestructibleBarrel, ExplosiveBarrel, Portal, GroundWeapon, SpikeTrap
+  Chest, Shrine, ShopItem, GoldPickup, HealthPickup, RelicPickup,
+  DestructibleBarrel, ExplosiveBarrel, Portal, GroundWeapon, SpikeTrap, Anvil
 } from '../types/interfaces';
 import { WEAPONS } from '../data/weapons';
 
@@ -16,10 +16,11 @@ interface EntityState {
   chests: Chest[];
   shrines: Shrine[];
   shopItems: ShopItem[];
+  anvils: Anvil[];
 
   goldPickups: GoldPickup[];
   healthPickups: HealthPickup[];
-  itemPickups: ItemPickup[];
+  relicPickups: RelicPickup[];
   destructibleBarrels: DestructibleBarrel[];
   explosiveBarrels: ExplosiveBarrel[];
   groundWeapons: GroundWeapon[];
@@ -51,8 +52,8 @@ interface EntityState {
   addHealthPickup: (h: HealthPickup) => void;
   removeHealthPickup: (id: string) => void;
 
-  addItemPickup: (i: ItemPickup) => void;
-  removeItemPickup: (id: string) => void;
+  addRelicPickup: (i: RelicPickup) => void;
+  removeRelicPickup: (id: string) => void;
   
   addDestructibleBarrel: (b: DestructibleBarrel) => void;
   removeDestructibleBarrel: (id: string) => void;
@@ -71,6 +72,8 @@ interface EntityState {
   useShrine: (id: string) => void;
   addShopItem: (s: ShopItem) => void;
   purchaseShopItem: (id: string) => void;
+  addAnvil: (a: Anvil) => void;
+  useAnvil: (id: string) => void;
   setPortal: (portal: Portal | null) => void;
   setCameraShake: (intensity: number) => void;
   
@@ -88,10 +91,11 @@ export const useEntityStore = create<EntityState>((set) => ({
   chests: [],
   shrines: [],
   shopItems: [],
+  anvils: [],
 
   goldPickups: [],
   healthPickups: [],
-  itemPickups: [],
+  relicPickups: [],
   destructibleBarrels: [],
   explosiveBarrels: [],
   groundWeapons: [],
@@ -164,10 +168,10 @@ export const useEntityStore = create<EntityState>((set) => ({
     healthPickups: state.healthPickups.filter(h => h.id !== id)
   })),
 
-  addItemPickup: (i) => set((state) => ({ itemPickups: [...state.itemPickups, i] })),
+  addRelicPickup: (i) => set((state) => ({ relicPickups: [...state.relicPickups, i] })),
   
-  removeItemPickup: (id) => set((state) => ({
-    itemPickups: state.itemPickups.filter(i => i.id !== id)
+  removeRelicPickup: (id) => set((state) => ({
+    relicPickups: state.relicPickups.filter(i => i.id !== id)
   })),
 
   addDestructibleBarrel: (b) => set((state) => ({ destructibleBarrels: [...state.destructibleBarrels, b] })),
@@ -205,8 +209,14 @@ export const useEntityStore = create<EntityState>((set) => ({
 
   addShopItem: (s) => set((state) => ({ shopItems: [...state.shopItems, s] })),
   
-  purchaseShopItem: (id) => set((state) => ({
-    shopItems: state.shopItems.map(si => si.id === id ? { ...si, purchased: true } : si)
+  purchaseShopItem: (id) => set(state => ({
+    shopItems: state.shopItems.map(s => s.id === id ? { ...s, purchased: true } : s)
+  })),
+
+  addAnvil: (a) => set(state => ({ anvils: [...state.anvils, a] })),
+  
+  useAnvil: (id) => set(state => ({
+    anvils: state.anvils.map(a => a.id === id ? { ...a, used: true } : a)
   })),
 
   setPortal: (portal) => set({ portal }),
@@ -222,9 +232,10 @@ export const useEntityStore = create<EntityState>((set) => ({
     chests: [],
     shrines: [],
     shopItems: [],
+    anvils: [],
     goldPickups: [],
     healthPickups: [],
-    itemPickups: [],
+    relicPickups: [],
     destructibleBarrels: [],
     explosiveBarrels: [],
     groundWeapons: [],
@@ -236,6 +247,7 @@ export const useEntityStore = create<EntityState>((set) => ({
     const chests: Chest[] = [];
     const shrines: Shrine[] = [];
     const shopItems: ShopItem[] = [];
+    const anvils: Anvil[] = [];
     const destructibleBarrels: DestructibleBarrel[] = [];
     const explosiveBarrels: ExplosiveBarrel[] = [];
     const groundWeapons: GroundWeapon[] = [];
@@ -335,6 +347,16 @@ export const useEntityStore = create<EntityState>((set) => ({
         cost: 20,
         purchased: false
       });
+
+      // Lò rèn đặt phía trên
+      anvils.push({
+        id: `anvil_shop_${Date.now()}`,
+        x: centerX,
+        y: centerY - 150,
+        radius: 25,
+        cost: 50,
+        used: false
+      });
       shopItems.push({
         id: 'shop_weapon',
         x: centerX + 150,
@@ -415,6 +437,7 @@ export const useEntityStore = create<EntityState>((set) => ({
       chests,
       shrines,
       shopItems,
+      anvils,
       destructibleBarrels,
       explosiveBarrels,
       groundWeapons,

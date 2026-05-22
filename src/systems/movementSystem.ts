@@ -118,7 +118,13 @@ export function runMovementSystem(delta: number) {
       // Đang khựng hình (Hit Stop), không di chuyển
     } else {
       // Tốc độ thực tế dựa vào chỉ số tốc độ và delta time
-      const speedMultiplier = player.statusEffects.includes('slowed') ? 0.5 : 1.0;
+      let speedMultiplier = player.statusEffects.includes('frozen') ? 0.5 : 1.0;
+      
+      // Relic: Hermes Boots (+15% tốc độ)
+      if (player.relics?.includes('hermes_boots')) {
+        speedMultiplier *= 1.15;
+      }
+      
       const finalSpeed = player.speed * speedMultiplier * (delta / 16.67);
       
       let kx = player.knockbackVx || 0;
@@ -180,7 +186,8 @@ export function runMovementSystem(delta: number) {
     }
 
     // Quái di chuyển dựa trên vận tốc vx, vy do AI chỉ định
-    const finalSpeed = enemy.speed * (delta / 16.67);
+    let speedMultiplier = enemy.statusEffects.includes('frozen') ? 0.5 : 1.0;
+    const finalSpeed = enemy.speed * speedMultiplier * (delta / 16.67);
     let kx = enemy.knockbackVx || 0;
     let ky = enemy.knockbackVy || 0;
 
@@ -236,7 +243,8 @@ export function runMovementSystem(delta: number) {
   allies.forEach(ally => {
     if (ally.hitStopUntil && currentTime < ally.hitStopUntil) return;
 
-    const finalSpeed = ally.speed * (delta / 16.67);
+    let speedMultiplier = ally.statusEffects.includes('frozen') ? 0.5 : 1.0;
+    const finalSpeed = ally.speed * speedMultiplier * (delta / 16.67);
     let kx = ally.knockbackVx || 0;
     let ky = ally.knockbackVy || 0;
 

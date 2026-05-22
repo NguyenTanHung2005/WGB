@@ -15,69 +15,69 @@ export interface EnemyTemplate {
 export const ENEMY_TEMPLATES: EnemyTemplate[] = [
   {
     id: 'melee_goblin',
-    name: 'Goblin Chiến Binh',
-    maxHp: 15,
-    speed: 2.2,
+    name: 'Tà Giáo Đồ (Cultist)',
+    maxHp: 20,
+    speed: 2.5,
     radius: 16,
-    damage: 2,
+    damage: 3,
     aiPattern: 'chase',
     attackCooldown: 1000,
-    color: '#15803d' // Xanh lá cây đậm
+    color: '#14532d' // Xanh rêu tối
   },
   {
     id: 'ranged_skeleton',
-    name: 'Cung Thủ Xương',
-    maxHp: 12,
-    speed: 1.6,
+    name: 'Bộ Cốt Lục Lạc (Shattered Skeleton Ranged)',
+    maxHp: 15,
+    speed: 1.8,
     radius: 14,
-    damage: 1,
+    damage: 2,
     aiPattern: 'shoot',
     attackCooldown: 1500,
-    color: '#eab308' // Vàng
+    color: '#737373' // Xám xỉn
   },
   {
     id: 'suicide_bat',
-    name: 'Dơi Lửa Tự Sát',
-    maxHp: 8,
-    speed: 3.5,
+    name: 'Khối U Lơ Lửng (Floating Tumor)',
+    maxHp: 10,
+    speed: 3.8,
     radius: 12,
-    damage: 4, // Sát thương nổ
+    damage: 5, // Sát thương nổ
     aiPattern: 'charge',
     attackCooldown: 500, // Phát nổ lập tức khi tiếp cận
-    color: '#dc2626' // Đỏ rực
+    color: '#7f1d1d' // Đỏ máu sẫm
   },
   {
     id: 'melee_skeleton',
-    name: 'Chiến Binh Xương',
-    maxHp: 15,
-    speed: 2.5,
+    name: 'Xác Chết Rỉ Sét (Shattered Skeleton Melee)',
+    maxHp: 18,
+    speed: 2.8,
     radius: 14,
-    damage: 3,
+    damage: 4,
     aiPattern: 'chase',
     attackCooldown: 800,
-    color: '#94a3b8' // Xám nhạt
+    color: '#52525b' // Xám kẽm
   },
   {
     id: 'necromancer',
-    name: 'Tử Linh Sư',
-    maxHp: 25,
-    speed: 1.2,
+    name: 'Lich (Tử Ma)',
+    maxHp: 30,
+    speed: 1.5,
     radius: 18,
     damage: 0, // Không gây sát thương trực tiếp
     aiPattern: 'summon',
-    attackCooldown: 15000, // 15 giây gọi đệ 1 lần
-    color: '#6b21a8' // Tím đậm
+    attackCooldown: 4000, // 4 giây gọi đệ 1 lần
+    color: '#3b0764' // Tím đen
   }
 ];
 
 export const BOSS_TEMPLATE = {
   id: 'grand_slime',
-  name: 'Vua Slime Vĩ Đại (Grand Slime)',
-  maxHp: 250,
-  speed: 1.2,
+  name: 'Quái Thai Khổng Lồ (Flesh Amalgamation)',
+  maxHp: 300,
+  speed: 1.5,
   radius: 35,
-  damage: 3,
+  damage: 4,
   aiPattern: 'chase' as AIPattern,
   attackCooldown: 2000,
-  color: '#06b6d4' // Cyan nhấp nháy
+  color: '#831843' // Tím hồng thịt rữa
 };

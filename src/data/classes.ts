@@ -58,9 +58,10 @@ export const CHARACTER_CLASSES: CharacterClass[] = [
     maxShield: 3,
     speed: 3.0,
     skillName: 'False Light',
-    skillCooldown: 15000,
-    skillDescription: 'Vay mượn thứ ánh sáng le lói cuối cùng để tạo ra một vụ nổ. Hồi 2 Máu và đẩy lùi những kẻ bám đuổi.'
+    skillCooldown: 20000,
+    skillDescription: 'Hút 2 HP của bản thân để tạo ra vụ nổ ánh sáng gây mù loà, xoá sổ mọi luồng đạn và gây 20 sát thương xung quanh.'
   },
+
   {
     id: 'berserker',
     name: 'Linh Hồn Bị Nguyền Rủa (Cursed Soul)',
@@ -80,5 +81,15 @@ export const CHARACTER_CLASSES: CharacterClass[] = [
     skillName: 'Poison Blades',
     skillCooldown: 8000,
     skillDescription: 'Phóng ra 8 lưỡi dao tẩm độc phân hủy theo mọi hướng.'
+  },
+  {
+    id: 'bomb_devil',
+    name: 'Quỷ Boom (Bomb Devil)',
+    maxHp: 6,
+    maxShield: 1,
+    speed: 4.8,
+    skillName: 'Explosive Chain',
+    skillCooldown: 6000,
+    skillDescription: 'Ném ra một cái đầu phát nổ, tự kích hoạt sau 1 giây và gây sát thương khủng khiếp diện rộng. Kẻ địch bị nổ sẽ văng tung tóe.'
   }
 ];

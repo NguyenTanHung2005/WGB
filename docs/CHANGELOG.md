@@ -138,4 +138,27 @@ Tài liệu này ghi chép lại các bước triển khai của dự án theo t
 ## Phase 21: Giao Diện Chết Chóc (Dark Fantasy - Vòng lặp Cycle 2 #5)
 - **Đại tu CSS Giao Diện (Blocky UI)**: Xoá bỏ mọi hiệu ứng Glassmorphism (Kính mờ) và bo góc (border-radius) mềm mại của HUD, Menu, Minimap và Shop. Thay vào đó là các khung viền khối vuông cứng cáp, nét viền đen dày và hiệu ứng đổ bóng đặc (Hard-edge shadow).
 - **Phối màu Tăm Tối**: Màu sắc của Thanh Máu, Mana, Bảng Điểm được làm tối đi để tạo cảm giác rỉ sét và mục nát.
-- **Giảm Hồi Phục (Survival Hardcore)**: Tăng thời gian giãn cách hồi Giáp (Shield) từ 1 giây lên 3 giây sau 6 giây không chịu sát thương, khiến việc bảo toàn mạng sống trong Hầm ngục Mục nát trở nên vô cùng khắc nghiệt.
+## Phase 22: Mở đầu Cycle 3 (Dark Fantasy - Vòng lặp Cycle 3 #1)
+- **Sửa Lỗi Kẹt Hành Vi Khi Giết Boss**: Khắc phục triệt để lỗi khi người chơi hạ gục Boss nhưng các đệ tử (minions) vẫn sống khiến hệ thống bị kẹt không chuyển sang Cutscene Ending. Giờ đây, kết liễu Boss sẽ dọn dẹp sạch sẽ phòng và trực tiếp kích hoạt màn hình Chiến Thắng.
+- **Tối ưu Hóa Ending Cutscene**: Khóa hoàn toàn vận tốc di chuyển (`vx`, `vy`) của người chơi khi bước vào Cutscene để tránh tình trạng nhân vật tiếp tục trôi đi vô định.
+## Phase 23: Nâng cấp AI Quái vật (Dark Fantasy - Vòng lặp Cycle 3 #2)
+- **Cơ chế Phục Kích (Ambush)**: `Xác Chết Rỉ Sét` giờ đây có thể ngụy trang dưới dạng một đống xương vụn vô hại nằm rải rác trên bản đồ. Khi người chơi bất cẩn bước vào phạm vi 150px, chúng sẽ lập tức "thức tỉnh" (AWAKE!) và chuyển sang trạng thái truy đuổi.
+## Phase 24: Bản Đồ Khắc Nghiệt (Dark Fantasy - Vòng lặp Cycle 3 #3)
+- **Phòng Cạm Bẫy (Trap Room)**: Thay vì quái vật, bạn sẽ có nguy cơ bước vào một căn phòng giăng đầy bẫy gai và rải rác những thùng nổ chết người. Lựa chọn khôn ngoan nhất có lẽ là lẳng lặng đi sát tường và chuồn qua cửa tiếp theo.
+## Phase 25: Nỗi Kinh Hoàng Từ Giao Diện (Dark Fantasy - Vòng lặp Cycle 3 #4)
+- **Đại tu Main Menu**: Loại bỏ hoàn toàn sự thân thiện và các nút bấm bo góc. Main Menu giờ đây chìm trong bóng tối với font chữ thô kệch, rỉ sét và hiệu ứng Glitch chớp nháy loạn trí ở dòng chữ "DUNGEON OF DECAY".
+## Phase 26: Áp Lực Từ Bóng Tối (Dark Fantasy - Vòng lặp Cycle 3 #5)
+- **Hệ thống Tâm Trí (Sanity/MND)**: Bóng tối trong ngục không chỉ ăn mòn thể xác. Người chơi giờ đây bắt đầu với 100 Sanity. Thanh MND (Màu tím) được hiển thị trên HUD.
+- **Chứng Hoảng Loạn (Panic)**: Sanity tự động tụt 1 điểm mỗi 5 giây, và mất 5 điểm mỗi khi dính đòn từ kẻ thù. Khi Sanity rơi xuống dưới 30, nỗi sợ hãi bao trùm: Màn hình tối đi đáng kể, hạt nhiễu đỏ (Blood Noise) dày đặc, và sát thương người chơi bị giảm 30% do tay run rẩy.
+## Phase 27: Cơn Mưa Máu Từ Việc Cắt Lìa (Dark Fantasy - Vòng lặp Cycle 3 #6)
+- **Cơ chế Chặt Chém (Limb Dismemberment)**: Mọi đòn đánh cận chiến hoặc bắn xa giờ đây có xác suất (lên đến 60% nếu là Chí Mạng) khiến quái vật bị mất đi các bộ phận cơ thể! Dòng chữ máu "LOST ARM!" hoặc "LOST LEGS!" sẽ hiện lên giữa mưa máu đỏ tươi.
+## Phase 28: Hình Xăm Máu - Blood Decals (Dark Fantasy - Vòng lặp Cycle 3 #7)
+- **Vết Thương Không Thể Rửa Sạch**: Hầm ngục giờ đây sẽ ghi nhớ mọi cái chết và mọi vết thương. Mỗi khi quái vật bị chém trúng, chúng sẽ văng máu dính chặt xuống sàn gạch (`splatter`). Khi chết hoặc khi bị cắt đứt chi, một vũng máu sẫm màu khổng lồ (`puddle`) sẽ nhuộm đỏ cả một vùng.
+## Phase 29: Sức Mạnh Bị Nguyền Rủa (Dark Fantasy - Vòng lặp Cycle 3 #8)
+- **Đền Thờ Hiến Tế (Sacrifice Shrine)**: Bệ đá đẫm máu giờ đây không còn ban tặng ngẫu nhiên. Nếu bạn chấp nhận hiến tế **30% Sinh Lực (HP)**, đền thờ sẽ ban cho bạn **Cursed Blood Ring** (Nhẫn Huyết Chú).
+## Phase 30: Trụ Đá và Bóng Tối Vô Tận (Dark Fantasy - Vòng lặp Cycle 3 #9)
+- **Kiến trúc Trụ Đá (Pillars)**: Các phòng chiến đấu (Combat) và phòng Trùm (Boss) giờ đây được bố trí thêm 4 cột đá tảng khổng lồ vững chắc ở 4 góc. Chúng đóng vai trò như chướng ngại vật chắn đường đi của người chơi lẫn quái vật, đồng thời là vật cản chặn hoàn toàn các đường đạn súng/phép.
+## Phase 31: Vẻ Đẹp Của Sự Suy Tàn (The Final Polish - Vòng lặp Cycle 3 #10)
+- **Giao Diện Kêu Gọi (Main Menu)**: Màn hình chính giờ đây được thiết kế lại với phong cách rùng rợn: Tiêu đề `DUNGEON OF DECAY` rung giật điên cuồng, trên nền đen thẳm với những hạt tro tàn đỏ máu (Blood Embers) bay lơ lửng vô tận.
+- **Hiệu Ứng Chuyển Cảnh (Fade Transitions)**: Quá trình bước từ sảnh chờ vào hầm ngục, hoặc quá trình buông xuôi khi cái chết ập đến, giờ đây được nối liền bởi các màn hình đen mờ dần (Fade-in/Fade-out). Cái chết giờ đây cảm thấy nghẹn ngào và chậm rãi hơn bao giờ hết.
+- **Hoàn Tất Cycle 3**: `Dungeon of Decay` chính thức thoát khỏi hình hài của một nguyên mẫu (prototype) để khoác lên mình bộ cánh Dark Fantasy đẫm máu, tàn bạo, và đầy những bất ngờ chiến thuật. Hầm ngục đã mở, và nó đang chờ đợi những linh hồn mới!

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Room, RoomGates, RoomType, RoomState } from '../types/interfaces';
+import type { Room, RoomGates, RoomType, RoomState, BloodDecal, Pillar } from '../types/interfaces';
 
 interface MapState {
   rooms: Room[];
@@ -10,6 +10,7 @@ interface MapState {
   setEnemiesSpawned: (roomId: string, spawned: boolean) => void;
   incrementWave: (roomId: string) => void;
   setCurrentRoomId: (roomId: string | null) => void;
+  addBloodDecal: (roomId: string, decal: BloodDecal) => void;
 }
 
 // Chiều rộng và chiều cao phòng cố định
@@ -108,24 +109,48 @@ export const useMapStore = create<MapState>((set) => ({
       if (id === bossId) return 'boss';
       if (id === shopId) return 'shop';
       if (id === chestId) return 'chest';
+      
+      const rand = Math.random();
+      if (rand < 0.10) return 'trap';
+      if (rand < 0.15) return 'sacrifice';
       return 'combat';
     };
 
     const newRooms: Room[] = [];
     roomsMap.forEach((node, id) => {
       const rType = getRoomType(id);
+      
+      // Tạo Pillars cho phòng Combat và Boss
+      let roomPillars: Pillar[] = [];
+      if (rType === 'combat' || rType === 'boss') {
+        const pRadius = 60 + Math.random() * 20; // 60-80 px
+        const marginX = ROOM_WIDTH * 0.25;
+        const marginY = ROOM_HEIGHT * 0.25;
+        roomPillars = [
+          { x: marginX, y: marginY, radius: pRadius },
+          { x: ROOM_WIDTH - marginX, y: marginY, radius: pRadius },
+          { x: marginX, y: ROOM_HEIGHT - marginY, radius: pRadius },
+          { x: ROOM_WIDTH - marginX, y: ROOM_HEIGHT - marginY, radius: pRadius }
+        ];
+      }
+
+      const biomes: import('../types/interfaces').Biome[] = ['dungeon', 'blood', 'abyss', 'moss', 'hell'];
+      const randomBiome = biomes[Math.floor(Math.random() * biomes.length)];
+
       newRooms.push({
         id: id,
         gridX: node.x,
         gridY: node.y,
         type: rType,
-        state: rType === 'start' ? 'active' : 'unvisited',
+        state: rType === 'start' ? 'cleared' : 'unvisited',
         width: ROOM_WIDTH,
         height: ROOM_HEIGHT,
         gates: node.gates,
         enemiesSpawned: false,
         waveCount: 0,
-        maxWaves: rType === 'combat' ? (2 + Math.floor(Math.random() * 4)) : (rType === 'boss' ? 1 : 0)
+        maxWaves: rType === 'combat' ? (2 + Math.floor(Math.random() * 4)) : (rType === 'boss' ? 1 : 0),
+        pillars: roomPillars,
+        biome: randomBiome
       });
     });
 
@@ -143,9 +168,25 @@ export const useMapStore = create<MapState>((set) => ({
     rooms: s.rooms.map(r => r.id === roomId ? { ...r, enemiesSpawned: spawned } : r)
   })),
 
-  incrementWave: (roomId) => set((s) => ({
-    rooms: s.rooms.map(r => r.id === roomId ? { ...r, waveCount: r.waveCount + 1 } : r)
+  incrementWave: (roomId) => set((state) => ({
+    rooms: state.rooms.map(r => r.id === roomId ? { ...r, waveCount: r.waveCount + 1 } : r)
   })),
 
-  setCurrentRoomId: (currentRoomId) => set({ currentRoomId })
+  setCurrentRoomId: (roomId) => set({ currentRoomId: roomId }),
+
+  addBloodDecal: (roomId, decal) => set((state) => {
+    return {
+      rooms: state.rooms.map(r => {
+        if (r.id === roomId) {
+          const newDecals = [...(r.bloodDecals || []), decal];
+          // Giới hạn 200 decals mỗi phòng để tránh lag
+          if (newDecals.length > 200) {
+            newDecals.shift();
+          }
+          return { ...r, bloodDecals: newDecals };
+        }
+        return r;
+      })
+    };
+  })
 }));

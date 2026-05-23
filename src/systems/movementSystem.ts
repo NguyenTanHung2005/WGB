@@ -104,7 +104,8 @@ export function runMovementSystem(delta: number) {
   };
 
   // Gom tất cả các vật cản tĩnh trong phòng
-  const staticObstacles = [
+  const staticObstacles: Array<{ x: number, y: number, radius: number }> = [
+    ...(currentRoom.pillars || []),
     ...destructibleBarrels,
     ...explosiveBarrels,
     ...chests,
@@ -160,7 +161,23 @@ export function runMovementSystem(delta: number) {
       
       // Va chạm với vật cản tĩnh
       constrained = handleStaticCollision(constrained.x, constrained.y, player.radius, staticObstacles);
-      
+      // Hạt bụi bước chân
+      if ((player.vx !== 0 || player.vy !== 0) && nextAnimState !== 'roll' && Math.random() < 0.15) {
+        useEntityStore.getState().addParticle({
+          id: `footstep_${Date.now()}_${Math.random()}`,
+          x: constrained.x + (Math.random() - 0.5) * 10,
+          y: constrained.y + player.radius - 2,
+          vx: -player.vx * 0.2, // Bụi bay ngược hướng đi
+          vy: -player.vy * 0.2 - 0.5, // Bay nhẹ lên trên
+          radius: 2 + Math.random() * 2,
+          color: 'rgba(100, 100, 100, 0.4)',
+          alpha: 0.6,
+          decay: 0.04,
+          createdAt: currentTime,
+          lifespan: 300
+        });
+      }
+
       updatePlayer({
         x: constrained.x,
         y: constrained.y,
@@ -187,6 +204,11 @@ export function runMovementSystem(delta: number) {
 
     // Quái di chuyển dựa trên vận tốc vx, vy do AI chỉ định
     let speedMultiplier = enemy.statusEffects.includes('frozen') ? 0.5 : 1.0;
+    // Phạt tốc độ nếu mất chân (Limb Dismemberment)
+    if (enemy.missingLimbs?.includes('legs')) {
+      speedMultiplier *= 0.5; // Đi lết, giảm 50% tốc độ
+    }
+
     const finalSpeed = enemy.speed * speedMultiplier * (delta / 16.67);
     let kx = enemy.knockbackVx || 0;
     let ky = enemy.knockbackVy || 0;
@@ -289,4 +311,37 @@ export function runMovementSystem(delta: number) {
     y: p.y + p.vy * (delta / 16.67)
   }));
   setProjectiles(nextProjectiles);
+
+  // --- 6. LOOT BOUNCE (VẬT LÝ NẢY CỦA ĐỒ RỚT) ---
+  const GRAVITY = 0.4;
+  const BOUNCE_DAMPING = -0.5;
+
+  const updatePickupBounce = (pickups: any[], setter: (val: any[]) => void) => {
+    let changed = false;
+    const nextPickups = pickups.map(p => {
+      if (p.z !== undefined && p.vz !== undefined && (p.z < 0 || Math.abs(p.vz) > 0.1)) {
+        changed = true;
+        let nextVz = p.vz + GRAVITY * (delta / 16.67);
+        let nextZ = p.z + nextVz * (delta / 16.67);
+        
+        // Chạm đất
+        if (nextZ > 0) {
+          nextZ = 0;
+          nextVz = nextVz * BOUNCE_DAMPING; // Nảy lại với lực yếu hơn
+          if (Math.abs(nextVz) < 1) nextVz = 0; // Dừng nảy hẳn
+        }
+        
+        return { ...p, z: nextZ, vz: nextVz };
+      }
+      return p;
+    });
+    if (changed) setter(nextPickups);
+  };
+
+  const store = useEntityStore.getState();
+  updatePickupBounce(store.goldPickups, store.setGoldPickups);
+  updatePickupBounce(store.healthPickups, store.setHealthPickups);
+  updatePickupBounce(store.expPickups, store.setExpPickups);
+  updatePickupBounce(store.relicPickups, store.setRelicPickups);
+  updatePickupBounce(store.groundWeapons, store.setGroundWeapons);
 }

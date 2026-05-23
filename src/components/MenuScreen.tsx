@@ -1,15 +1,80 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useEntityStore } from '../store/entityStore';
 import { useMapStore } from '../store/mapStore';
 import { CHARACTER_CLASSES } from '../data/classes';
 import { WEAPONS } from '../data/weapons';
-import { Shield, Heart, Flame, ArrowRight } from 'lucide-react';
+import { Shield, Flame, Heart } from 'lucide-react';
 
 export const MenuScreen: React.FC = () => {
-  const { setPhase, setSelectedClassId } = useGameStore();
+  const { setPhase, setSelectedClassId, setTransitioning } = useGameStore();
   const { setPlayer, clearRoomEntities, spawnRoomElements, addAlly } = useEntityStore();
   const { generateDungeon } = useMapStore();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [mousePos, setMousePos] = React.useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let particles: Array<{ x: number, y: number, vx: number, vy: number, r: number, alpha: number }> = [];
+    
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Khởi tạo hạt
+    for (let i = 0; i < 100; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: Math.random() * 1.5 + 0.5,
+        r: Math.random() * 2 + 1,
+        alpha: Math.random() * 0.8 + 0.2
+      });
+    }
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      particles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(153, 27, 27, ${p.alpha})`; // Red ember
+        ctx.fill();
+        
+        // Di chuyển
+        p.x += p.vx;
+        p.y += p.vy;
+        
+        // Rơi lả tả
+        p.vx += (Math.random() - 0.5) * 0.1;
+        if (p.vx > 1) p.vx = 1;
+        if (p.vx < -1) p.vx = -1;
+
+        if (p.y > canvas.height) {
+          p.y = -10;
+          p.x = Math.random() * canvas.width;
+        }
+      });
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+    render();
+
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
 
   const handleSelectClass = (classId: string) => {
     const chosenClass = CHARACTER_CLASSES.find(c => c.id === classId);
@@ -26,6 +91,16 @@ export const MenuScreen: React.FC = () => {
       defaultWeapons = [WEAPONS.find(w => w.id === 'dagger')!, pistol];
     } else if (classId === 'archer') {
       defaultWeapons = [WEAPONS.find(w => w.id === 'wooden_bow')!, pistol];
+    } else if (classId === 'ninja') {
+      defaultWeapons = [WEAPONS.find(w => w.id === 'kunai')!, pistol];
+    } else if (classId === 'paladin') {
+      defaultWeapons = [WEAPONS.find(w => w.id === 'holy_mace')!, pistol];
+    } else if (classId === 'berserker') {
+      defaultWeapons = [WEAPONS.find(w => w.id === 'heavy_axe')!, pistol];
+    } else if (classId === 'summoner') {
+      defaultWeapons = [WEAPONS.find(w => w.id === 'blood_grimoire')!, pistol];
+    } else if (classId === 'bomb_devil') {
+      defaultWeapons = [WEAPONS.find(w => w.id === 'bomb_detonator')!, pistol];
     } else {
       defaultWeapons = [WEAPONS.find(w => w.id === 'broadsword')!, pistol];
     }
@@ -42,6 +117,8 @@ export const MenuScreen: React.FC = () => {
       maxHp: chosenClass.maxHp,
       shield: chosenClass.maxShield,
       maxShield: chosenClass.maxShield,
+      sanity: 100,
+      maxSanity: 100,
       speed: chosenClass.speed,
       angle: 0,
       activeWeaponIndex: 0,
@@ -75,76 +152,156 @@ export const MenuScreen: React.FC = () => {
       color: '#fef08a'
     });
     
-    setPhase('playing');
+    setTransitioning(true);
+    setTimeout(() => {
+      setPhase('cutscene_intro');
+      setTimeout(() => setTransitioning(false), 500);
+    }, 1500);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    setMousePos({
+      x: (e.clientX / window.innerWidth) - 0.5,
+      y: (e.clientY / window.innerHeight) - 0.5
+    });
   };
 
   return (
-    <div className="menu-screen bg-[#050505] text-[#d1d5db]">
-      <div className="menu-title font-serif text-[#991b1b] drop-shadow-[0_0_15px_rgba(153,27,27,0.8)]">Dungeon of Decay</div>
-      <div className="menu-subtitle italic text-[#78716c] mb-6">Bạn là một linh hồn bị nguyền rủa, bị ném vào hầm ngục thối rữa này.<br/>Không có ánh sáng, chỉ có máu, bóng tối và sự mục nát vô tận...</div>
+    <div 
+      className="bg-[#050505] text-[#737373]" 
+      style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', overflow: 'hidden', padding: 0 }}
+      onMouseMove={handleMouseMove}
+    >
+      {/* Lớp Parallax Background */}
+      <div 
+        style={{ 
+          position: 'absolute', inset: -50, 
+          background: 'radial-gradient(circle at 50% 50%, #1e1b4b 0%, #000000 80%)',
+          transform: `translate(${mousePos.x * -30}px, ${mousePos.y * -30}px)`,
+          transition: 'transform 0.1s ease-out'
+        }}
+      />
+      
+      {/* Background Canvas for Embers */}
+      <canvas 
+        ref={canvasRef} 
+        style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0, pointerEvents: 'none', transform: `translate(${mousePos.x * -15}px, ${mousePos.y * -15}px)` }}
+      />
+      
+      <div style={{ 
+        zIndex: 1, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', 
+        height: '100%', width: '100%', overflowY: 'auto', paddingTop: '80px', paddingBottom: '80px' 
+      }}>
+        <div 
+          className="menu-title text-[#ef4444] tracking-[0.2em] mb-4" 
+          style={{ fontFamily: 'var(--font-serif)', fontSize: '72px', textShadow: '0 0 20px rgba(239, 68, 68, 0.5)' }}
+        >
+          ELDRITCH SURVIVOR
+        </div>
+        <div className="menu-subtitle italic text-[#52525b] mb-12">"Tất cả rồi sẽ mục nát..."<br/>Hãy chọn hình hài cuối cùng của bạn trước khi bước vào cõi chết.</div>
 
-      <div className="class-grid">
+      <div 
+        className="flex flex-wrap justify-center gap-8 px-8 max-w-[1200px] w-full"
+        style={{ transform: `translate(${mousePos.x * 10}px, ${mousePos.y * 10}px)`, transition: 'transform 0.1s ease-out' }}
+      >
         {CHARACTER_CLASSES.map(cls => (
           <div 
             key={cls.id}
             onClick={() => handleSelectClass(cls.id)}
-            className="class-card"
+            className="group relative flex flex-col items-center cursor-pointer transition-transform duration-500 hover:-translate-y-4"
           >
-            <div>
-              <div className="class-card-header">
-                <span className={`class-badge badge-${cls.id}`}>
-                  {cls.id}
-                </span>
-                <span className="class-select-indicator">
-                  Chọn <ArrowRight style={{ width: '13px', height: '13px' }} />
-                </span>
-              </div>
-              
-              <h2 className="class-name">{cls.name}</h2>
-              
-              <div className="stats-list">
-                <div className="stat-item">
-                  <span className="stat-label">
-                    <Heart style={{ width: '13px', height: '13px', color: '#ef4444' }} /> Sinh lực (HP)
-                  </span>
-                  <span className="stat-val">{cls.maxHp}</span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-label">
-                    <Shield style={{ width: '13px', height: '13px', color: '#22d3ee' }} /> Giáp thủ
-                  </span>
-                  <span className="stat-val">{cls.maxShield}</span>
-                </div>
-              </div>
+            {/* Ánh sáng chiếu từ trên xuống khi hover */}
+            <div className="absolute -top-20 w-32 h-64 bg-gradient-to-b from-white/0 via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+            {/* Nhân vật đứng trên bệ */}
+            <div className="relative w-40 h-56 flex flex-col items-center justify-end z-10 mb-[-10px]">
+               {/* Hình bóng nhân vật (Silhouette) */}
+               <div className={`w-24 h-32 rounded-t-full border transition-all duration-300 relative overflow-hidden flex items-center justify-center
+                  ${cls.id === 'berserker' ? 'bg-[#1c1917] border-[#000] shadow-[0_0_20px_rgba(153,27,27,0.8)] group-hover:border-[#991b1b]' :
+                    cls.id === 'bomb_devil' ? 'bg-[#1c1917] border-[#000] shadow-[0_0_20px_rgba(255,255,255,0.5)] group-hover:border-[#000]' :
+                    'bg-[#1c1917] border-[#292524] shadow-[0_0_20px_rgba(0,0,0,0.8)] group-hover:border-[#fbbf24]'}
+               `}>
+                  
+                  {cls.id === 'berserker' ? (
+                    // Highly Detailed Pixel Art Image
+                    <div className="absolute inset-0 w-full h-full bg-[#fcd34d]">
+                      <img src="/images/berserker_card.png" alt="Berserker Pixel Art" className="w-full h-full object-cover opacity-100 group-hover:scale-110 transition-transform duration-300" style={{ imageRendering: 'pixelated' }} />
+                    </div>
+                  ) : cls.id === 'bomb_devil' ? (
+                    // Highly Detailed Pixel Art Image
+                    <div className="absolute inset-0 w-full h-full bg-[#71717a]">
+                      <img src="/images/bomb_devil_card.png" alt="Bomb Devil Pixel Art" className="w-full h-full object-cover opacity-100 group-hover:scale-110 transition-transform duration-300" style={{ imageRendering: 'pixelated' }} />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
+                      <span className="text-[#52525b] group-hover:text-[#fbbf24] font-serif text-6xl opacity-30 transition-colors">?</span>
+                    </>
+                  )}
+               </div>
             </div>
 
-            <div className="skill-box">
-              <div className="skill-header">
-                <Flame style={{ width: '13px', height: '13px', color: '#fbbf24' }} /> Kỹ năng: {cls.skillName}
+            {/* Bệ đá (Pedestal) */}
+            <div className="relative w-48 h-16">
+              {/* Mặt trên */}
+              <div className="absolute top-0 w-full h-8 bg-[#292524] rounded-[50%] border-t-2 border-[#52525b] group-hover:border-[#fbbf24] shadow-[0_0_15px_rgba(0,0,0,1)] transition-colors z-20" />
+              {/* Thân bệ */}
+              <div className="absolute top-4 w-full h-12 bg-gradient-to-b from-[#1c1917] to-[#0c0a09] border-x border-[#292524] rounded-b-[50%] z-10" />
+            </div>
+
+            {/* Thông tin Class */}
+            <div className={`mt-8 text-center bg-black/80 backdrop-blur-sm border p-4 w-64 opacity-70 group-hover:opacity-100 transition-all duration-300 relative overflow-hidden
+              ${cls.id === 'berserker' ? 'border-[#991b1b] shadow-[0_5px_15px_rgba(153,27,27,0.3)]' :
+                cls.id === 'bomb_devil' ? 'border-[#e5e5e5] shadow-[0_5px_15px_rgba(255,255,255,0.2)]' :
+                'border-[#292524] group-hover:border-[#fbbf24]/50'}`}
+            >
+              <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity
+                ${cls.id === 'berserker' ? 'via-[#991b1b]' : cls.id === 'bomb_devil' ? 'via-[#e5e5e5]' : 'via-[#fbbf24]'}`} 
+              />
+              <h2 className={`font-serif tracking-[0.2em] text-lg mb-2 uppercase
+                ${cls.id === 'berserker' ? 'text-[#ef4444] font-black drop-shadow-[0_0_5px_red]' : 
+                  cls.id === 'bomb_devil' ? 'text-[#ffffff] font-light drop-shadow-[0_0_5px_white]' : 
+                  'text-[#fbbf24]'}`}
+              >
+                {cls.name}
+              </h2>
+              
+              <div className="flex justify-center gap-4 text-xs font-mono text-gray-400 mb-4">
+                <span className="flex items-center gap-1"><Heart size={12} className={cls.id === 'berserker' ? 'text-[#991b1b]' : 'text-red-500'} /> {cls.maxHp}</span>
+                <span className="flex items-center gap-1"><Shield size={12} className="text-cyan-500" /> {cls.maxShield}</span>
               </div>
-              <p className="skill-desc">
-                {cls.skillDescription}
-              </p>
+              
+              <div className={`border-t pt-2 mt-2 ${cls.id === 'berserker' ? 'border-[#991b1b]/50' : cls.id === 'bomb_devil' ? 'border-[#e5e5e5]/30' : 'border-[#292524]'}`}>
+                <div className={`text-[10px] uppercase tracking-widest mb-1 flex items-center justify-center gap-1
+                  ${cls.id === 'berserker' ? 'text-[#ef4444]' : cls.id === 'bomb_devil' ? 'text-[#e5e5e5]' : 'text-[#fbbf24]'}`}
+                >
+                   <Flame size={10} /> {cls.skillName}
+                </div>
+                <p className="text-xs text-gray-500 italic line-clamp-3">
+                  {cls.skillDescription}
+                </p>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="flex justify-center mt-6">
+      <div className="flex justify-center mt-12 z-10">
         <button 
-          className="px-6 py-2 bg-[#7f1d1d]/80 hover:bg-[#991b1b]/90 text-[#fca5a5] rounded-none border border-[#b91c1c] font-serif uppercase tracking-widest transition-transform hover:scale-105 shadow-[0_0_10px_rgba(185,28,28,0.5)]"
+          className="px-8 py-3 bg-transparent text-[#7f1d1d] hover:text-[#ef4444] border-b border-[#7f1d1d] hover:border-[#ef4444] font-serif uppercase tracking-widest transition-all duration-300"
           onClick={() => setPhase('cutscene_ending')}
         >
-          👁️ Chấp nhận cái chết (Xem Cutscene)
+          Watch Epilogue (Debug)
         </button>
       </div>
 
-      <div className="keybinds-footer">
-        <div><span className="key-cap">WASD</span> Di chuyển</div>
-        <div><span className="key-cap">Click chuột trái</span> Bắn liên thanh</div>
-        <div><span className="key-cap">Q / Space</span> Đổi vũ khí</div>
-        <div><span className="key-cap">E / Chuột phải</span> Kỹ năng đặc biệt</div>
-        <div><span className="key-cap">F</span> Tương tác rương/shop</div>
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-8 font-serif text-[10px] tracking-widest text-[#52525b] uppercase opacity-50">
+        <span>WASD: Move</span>
+        <span>LMB: Auto Aim</span>
+        <span>RMB/E: Skill</span>
+        <span>SPC/Q: Weapon</span>
+        <span>F: Interact</span>
+      </div>
       </div>
     </div>
   );

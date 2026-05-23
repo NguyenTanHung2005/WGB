@@ -1,5 +1,8 @@
 import { useEntityStore } from '../store/entityStore';
+import { useGameStore } from '../store/gameStore';
+import { useMapStore } from '../store/mapStore';
 import type { Entity } from '../types/interfaces';
+import { CHARACTER_CLASSES } from '../data/classes';
 
 export function runCombatSystem(_delta: number) {
   const { player, updatePlayer, enemies, updateEnemy, addDamageNumber, addParticle } = useEntityStore.getState();
@@ -20,6 +23,25 @@ export function runCombatSystem(_delta: number) {
         shield: Math.min(maxShield, currentShield + 1),
         ...({ lastShieldRegenTime: currentTime } as any)
       });
+    }
+  }
+
+  // --- 1.5. HỒI PHỤC MANA (SANITY) ---
+  if (player.sanity !== undefined && player.maxSanity !== undefined && player.sanity < player.maxSanity) {
+    const lastMpRegenTime = (player as any).lastMpRegenTime || 0;
+    if (currentTime - lastMpRegenTime >= 100) { // Hồi 10 MP mỗi giây
+      updatePlayer({
+        sanity: Math.min(player.maxSanity, player.sanity + 1),
+        ...({ lastMpRegenTime: currentTime } as any)
+      });
+    }
+  }
+
+  // --- COMBO DECAY ---
+  if (player.comboCount && player.comboCount > 0) {
+    const lastCombo = player.lastComboTime || 0;
+    if (currentTime - lastCombo > 2000) { // 2 giây không đánh trúng -> mất combo
+      updatePlayer({ comboCount: 0 });
     }
   }
 
@@ -78,8 +100,14 @@ export function runCombatSystem(_delta: number) {
           
           updateEnemy(e.id, {
             hp: nextHp,
-            vx: Math.cos(pushAngle) * 5,
-            vy: Math.sin(pushAngle) * 5
+            knockbackVx: Math.cos(pushAngle) * 5,
+            knockbackVy: Math.sin(pushAngle) * 5
+          });
+
+          const prevCombo = player.comboCount || 0;
+          updatePlayer({
+            comboCount: prevCombo + 1,
+            lastComboTime: currentTime
           });
 
           addDamageNumber({
@@ -134,9 +162,67 @@ export function runCombatSystem(_delta: number) {
   }
 }
 
+// --- HÀM KÍCH HOẠT CHIÊU CUỐI (ULTIMATE ATTACK) ---
+export function triggerPlayerUltimate() {
+  const { player, updatePlayer, addParticle, addDamageNumber, setCameraShake, enemies, updateEnemy } = useEntityStore.getState();
+  if (!player || player.hp <= 0) return;
+
+  // Cần ít nhất 50 MP (Sanity) để dùng Ultimate
+  if ((player.sanity || 0) < 50) {
+    addDamageNumber({
+      id: `ult_fail_${Date.now()}`, x: player.x, y: player.y - 30,
+      value: 0, text: 'NOT ENOUGH MP!', color: '#94a3b8', isCrit: false, createdAt: performance.now(), lifespan: 1000
+    });
+    return;
+  }
+
+  // Trừ 50 MP
+  updatePlayer({ sanity: (player.sanity || 0) - 50 });
+  const currentTime = performance.now();
+  
+  // Dừng hình toàn bộ màn hình
+  useGameStore.getState().triggerHitStop(500); 
+  setCameraShake(20);
+
+  // Vụ nổ toàn bản đồ
+  for (let i = 0; i < 100; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 5 + Math.random() * 15;
+    addParticle({
+      id: `ult_${Date.now()}_${i}`,
+      x: player.x,
+      y: player.y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      radius: 4 + Math.random() * 6,
+      color: Math.random() > 0.5 ? '#f43f5e' : '#fbbf24',
+      alpha: 1.0,
+      decay: 0.02,
+      createdAt: currentTime,
+      lifespan: 1000
+    });
+  }
+
+  // Gây sát thương cực mạnh lên toàn bộ kẻ địch trên màn hình
+  enemies.forEach(e => {
+    if (e.hp > 0) {
+      const dist = Math.hypot(e.x - player.x, e.y - player.y);
+      if (dist < 800) { // Tầm đánh toàn màn hình
+        const dmg = 150 + Math.floor(Math.random() * 100);
+        updateEnemy(e.id, { hp: Math.max(0, e.hp - dmg) });
+        addDamageNumber({
+          id: `ult_dmg_${Date.now()}_${e.id}`, x: e.x, y: e.y - 20,
+          value: dmg, text: 'OBLITERATED', color: '#f43f5e', isCrit: true, createdAt: currentTime, lifespan: 1500
+        });
+      }
+    }
+  });
+}
+
 // --- HÀM KÍCH HOẠT TẤN CÔNG (BẮN SÚNG / CẬN CHIẾN) ---
 export function triggerPlayerAttack(mouseX: number, mouseY: number) {
   const { player, updatePlayer, addProjectile, enemies, updateEnemy, addParticle, addDamageNumber, setCameraShake, projectiles, setProjectiles } = useEntityStore.getState();
+  const { currentRoomId, addBloodDecal } = useMapStore.getState();
   if (!player) return;
 
   const weapons = player.weapons || [];
@@ -178,39 +264,32 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
     // --- TẤN CÔNG CẬN CHIẾN (BROADSWORD) ---
     // Tạo hiệu ứng hạt bụi chém hình vòng cung
     const arcRadius = weapon.range || 80;
-    const particleCount = 12;
-    const startSweepAngle = baseAngle - Math.PI / 3; // -60 độ
-    const sweepRange = (Math.PI * 2) / 3;            // 120 độ
-
-    for (let i = 0; i < particleCount; i++) {
-      const angle = startSweepAngle + (sweepRange * (i / particleCount));
-      const px = player.x + Math.cos(angle) * arcRadius;
-      const py = player.y + Math.sin(angle) * arcRadius;
-      
-      addParticle({
-        id: `melee_spark_${Date.now()}_${i}`,
-        x: px,
-        y: py,
-        vx: Math.cos(angle) * 1.5,
-        vy: Math.sin(angle) * 1.5,
-        radius: 3 + Math.random() * 3,
-        color: 'rgba(56, 189, 248, 0.6)', // Xanh lam mờ
-        alpha: 0.8,
-        decay: 0.04,
-        createdAt: currentTime,
-        lifespan: 300
-      });
-    }
+    // Thay thế hiệu ứng hạt bằng vệt chém ngang (Slash Trail)
+    addParticle({
+      id: `melee_slash_${Date.now()}`,
+      type: 'slash_trail',
+      angle: baseAngle,
+      x: player.x,
+      y: player.y,
+      vx: 0,
+      vy: 0,
+      radius: arcRadius, // Chiều dài vệt chém
+      color: 'rgba(255, 255, 255, 0.9)', // Trắng sáng
+      alpha: 1.0,
+      decay: 0.1, // Biến mất rất nhanh
+      createdAt: currentTime,
+      lifespan: 150
+    });
 
     // Camera rung nhẹ
     setCameraShake(2);
 
-    // Tính sát thương cận chiến (Kiểm tra xem có chí mạng sau khi Rogue lộn nhào không)
-    let isCrit = false;
-    let finalDamage = weapon.damage;
+    // Tính sát thương cận chiến (Kiểm tra xem có chí mạng sau khi Rogue lộn nhào không, hoặc chí mạng ngẫu nhiên 10%)
+    let isCrit = Math.random() < 0.1;
+    let finalDamage = isCrit ? Math.floor(weapon.damage * 1.5) : weapon.damage;
     if (isRogueSkillActive) {
       isCrit = true;
-      finalDamage = Math.floor(weapon.damage * 1.5);
+      finalDamage = Math.floor(weapon.damage * 2.0); // X2 sát thương chí mạng sau lướt
       // Tắt buff chí mạng sau phát đánh đầu tiên
       updatePlayer({ skillActiveUntil: undefined });
     }
@@ -219,6 +298,30 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
     if (player.relics?.includes('berserker_ring') && player.hp < player.maxHp * 0.3) {
       finalDamage = Math.floor(finalDamage * 1.5);
     }
+
+    // Class Berserker: Tăng tới 100% sát thương theo % máu đã mất (Max khi máu < 30%)
+    if (player.id === 'berserker') {
+      const hpPercent = player.hp / player.maxHp;
+      if (hpPercent <= 0.3) {
+        finalDamage = Math.floor(finalDamage * 2.0); // 100% bonus
+      } else {
+        const bonus = 1 + (1 - hpPercent); // VD 50% máu -> 1.5x
+        finalDamage = Math.floor(finalDamage * bonus);
+      }
+    }
+    
+    // Cursed Blood Ring: Luôn tăng 50% sát thương
+    const hasCursedRing = player.relics?.includes('cursed_blood_ring');
+    if (hasCursedRing) {
+      finalDamage = Math.floor(finalDamage * 1.5);
+    }
+    
+    // Phạt Sanity: Nếu Sanity < 30, giảm 30% sát thương do hoảng sợ
+    if ((player.sanity ?? 100) < 30) {
+      finalDamage = Math.max(1, Math.floor(finalDamage * 0.7));
+    }
+
+    let cursedRingTriggered = false;
 
     // 1. Quét kẻ địch bị chém trúng
     enemies.forEach(enemy => {
@@ -237,13 +340,191 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
 
         if (Math.abs(angleDiff) <= Math.PI / 3) {
           // Trúng đòn!
+          const prevCombo = player.comboCount || 0;
+          updatePlayer({
+            comboCount: prevCombo + 1,
+            lastComboTime: currentTime
+          });
+          
+          // Hit-Stop: Cảm giác đánh nặng nề
+          if (enemy.type === 'boss' || isCrit) {
+             useGameStore.getState().triggerHitStop(isCrit ? 80 : 50); // Khựng 80ms nếu crit, 50ms nếu boss
+          }
+
           const nextHp = Math.max(0, enemy.hp - finalDamage);
           const updateData: Partial<Entity> = { hp: nextHp };
           if (enemy.type !== 'boss') {
-            updateData.vx = Math.cos(enemyAngle) * 4;
-            updateData.vy = Math.sin(enemyAngle) * 4;
+            updateData.knockbackVx = Math.cos(enemyAngle) * (isCrit ? 12 : 8);
+            updateData.knockbackVy = Math.sin(enemyAngle) * (isCrit ? 12 : 8);
           }
+
+          // Máu văng tung tóe theo hướng chém
+          for (let p = 0; p < (isCrit ? 10 : 5); p++) {
+            addParticle({
+              id: `blood_splatter_${Date.now()}_${enemy.id}_${p}`,
+              x: enemy.x,
+              y: enemy.y,
+              vx: Math.cos(enemyAngle + (Math.random() - 0.5)) * (2 + Math.random() * 4),
+              vy: Math.sin(enemyAngle + (Math.random() - 0.5)) * (2 + Math.random() * 4),
+              radius: 1 + Math.random() * 3,
+              color: enemy.element === 'poison' ? '#a3e635' : '#b91c1c', // Máu xanh nếu là độc, đỏ nếu thường
+              alpha: 0.9,
+              decay: 0.03,
+              createdAt: currentTime,
+              lifespan: 500
+            });
+          }
+          
+          // Dismemberment Logic (Cơ chế chặt chém)
+          let dismembered = false;
+          if (nextHp > 0 && enemy.type !== 'boss') {
+            // Xác suất 30% bị đứt tay chân (50% nếu chí mạng)
+            const dismemberChance = isCrit ? 0.5 : 0.3;
+            if (Math.random() < dismemberChance) {
+              const currentLimbs = enemy.missingLimbs || [];
+              const possibleLimbs: ('arm' | 'legs')[] = ['arm', 'legs'].filter(l => !currentLimbs.includes(l as any)) as ('arm' | 'legs')[];
+              if (possibleLimbs.length > 0) {
+                const limbToLose = possibleLimbs[Math.floor(Math.random() * possibleLimbs.length)];
+                updateData.missingLimbs = [...currentLimbs, limbToLose];
+                dismembered = true;
+                
+                // Báo chữ Dismember
+                addDamageNumber({
+                  id: `dismember_${Date.now()}_${enemy.id}`,
+                  x: enemy.x,
+                  y: enemy.y - 35,
+                  value: 0,
+                  text: limbToLose === 'arm' ? 'LOST ARM!' : 'LOST LEGS!',
+                  color: '#991b1b', // Đỏ máu đậm
+                  isCrit: true,
+                  createdAt: currentTime,
+                  lifespan: 1000
+                });
+
+                // Rơi ra một khúc tay chân (Particle)
+                addParticle({
+                  id: `limb_${Date.now()}_${enemy.id}`,
+                  type: 'limb_piece',
+                  x: enemy.x,
+                  y: enemy.y,
+                  vx: (Math.random() - 0.5) * 6,
+                  vy: (Math.random() - 0.5) * 6,
+                  radius: limbToLose === 'arm' ? 4 : 6,
+                  color: enemy.color || '#450a0a',
+                  alpha: 1.0,
+                  decay: 0.005, // Lâu biến mất
+                  createdAt: currentTime,
+                  lifespan: 5000,
+                  angle: Math.random() * Math.PI * 2
+                });
+                
+                // Decal vũng máu dài
+                if (currentRoomId) {
+                  addBloodDecal(currentRoomId, {
+                    x: enemy.x + Math.cos(enemyAngle) * 15 + (Math.random() - 0.5) * 15,
+                    y: enemy.y + Math.sin(enemyAngle) * 15 + (Math.random() - 0.5) * 15,
+                    radius: 12 + Math.random() * 10,
+                    alpha: 0.7 + Math.random() * 0.3,
+                    type: 'puddle',
+                    color: enemy.element === 'poison' ? '#4d7c0f' : '#450a0a'
+                  });
+                }
+              }
+            }
+          }
+
           updateEnemy(enemy.id, updateData);
+          
+          if (hasCursedRing && !cursedRingTriggered) {
+            cursedRingTriggered = true;
+            const nextP_HP = Math.max(1, player.hp - 1);
+            const nextP_San = Math.max(0, (player.sanity ?? 100) - 2);
+            updatePlayer({ hp: nextP_HP, sanity: nextP_San });
+            
+            // Player văng máu vì lời nguyền
+            for(let p_blood = 0; p_blood < 5; p_blood++) {
+              addParticle({
+                id: `cursed_blood_${Date.now()}_${p_blood}`,
+                x: player.x,
+                y: player.y,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4,
+                radius: 2,
+                color: '#991b1b',
+                alpha: 0.9,
+                decay: 0.05,
+                createdAt: currentTime,
+                lifespan: 300
+              });
+            }
+          }
+
+          if (nextHp <= 0 && currentRoomId) {
+            // --- KẾT LIỄU TÀN KHỐC (Execution Blood Explosion) ---
+            if (isCrit || finalDamage >= enemy.maxHp * 0.5) {
+              setCameraShake(6);
+              // Rung tung toé máu văng tứ phía
+              for (let k = 0; k < 20; k++) {
+                addParticle({
+                  id: `execution_blood_${Date.now()}_${k}`,
+                  x: enemy.x,
+                  y: enemy.y,
+                  vx: (Math.random() - 0.5) * 12,
+                  vy: (Math.random() - 0.5) * 12,
+                  radius: 2 + Math.random() * 5,
+                  color: enemy.element === 'poison' ? '#bef264' : '#ef4444',
+                  alpha: 1.0,
+                  decay: 0.04,
+                  createdAt: currentTime,
+                  lifespan: 800
+                });
+              }
+              // Mảnh thịt văng
+              for (let k = 0; k < 3; k++) {
+                addParticle({
+                  id: `execution_flesh_${Date.now()}_${k}`,
+                  x: enemy.x,
+                  y: enemy.y,
+                  vx: (Math.random() - 0.5) * 8,
+                  vy: (Math.random() - 0.5) * 8,
+                  radius: 6 + Math.random() * 4,
+                  color: '#7f1d1d',
+                  alpha: 1.0,
+                  decay: 0.02,
+                  type: 'limb_piece',
+                  createdAt: currentTime,
+                  lifespan: 2000
+                });
+              }
+            }
+
+            // Vũng máu cực lớn khi chết
+            addBloodDecal(currentRoomId, {
+              x: enemy.x,
+              y: enemy.y,
+              radius: (isCrit || finalDamage >= enemy.maxHp * 0.5) ? 50 + Math.random() * 30 : 30 + Math.random() * 20,
+              alpha: 0.9,
+              type: 'puddle'
+            });
+
+            // Chain Explosions (Nếu quái bị burning hoặc chết bởi Bomb Devil)
+            if (enemy.statusEffects.includes('burning') || player.id === 'bomb_devil') {
+              // Gây nổ lan bằng cách tạo một Projectile nổ tức thì
+              useEntityStore.getState().addProjectile({
+                id: `chain_explode_${Date.now()}_${Math.random()}`,
+                x: enemy.x,
+                y: enemy.y,
+                vx: 0, vy: 0,
+                radius: 12,
+                damage: 0,
+                owner: 'player',
+                color: '#ef4444',
+                createdAt: performance.now(),
+                lifespan: 0, // Nổ ngay lập tức trong frame tiếp theo
+                isExplosive: true
+              });
+            }
+          }
 
           if (nextHp <= 0) {
             // Buff Relic: Vampire Tooth (5% hồi 1 HP khi giết địch)
@@ -274,8 +555,9 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
             lifespan: 600
           });
 
-          // Hạt máu tóe ra
-          for (let k = 0; k < 6; k++) {
+          // Hạt máu tóe ra (nhiều hơn nếu bị chặt chém)
+          const bloodCount = dismembered ? 15 : 6;
+          for (let k = 0; k < bloodCount; k++) {
             addParticle({
               id: `blood_${Date.now()}_${enemy.id}_${k}`,
               x: enemy.x,
@@ -288,6 +570,17 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
               decay: 0.05,
               createdAt: currentTime,
               lifespan: 200
+            });
+          }
+          
+          // Thêm splatter decal
+          if (currentRoomId && Math.random() < 0.4) {
+            addBloodDecal(currentRoomId, {
+              x: enemy.x + Math.cos(enemyAngle) * 10 + (Math.random() - 0.5) * 20,
+              y: enemy.y + Math.sin(enemyAngle) * 10 + (Math.random() - 0.5) * 20,
+              radius: 8 + Math.random() * 8,
+              alpha: 0.6 + Math.random() * 0.3,
+              type: 'splatter'
             });
           }
         }
@@ -356,6 +649,22 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
     // Buff Relic: Berserker Ring (+50% sát thương khi HP < 30%)
     if (player.relics?.includes('berserker_ring') && player.hp < player.maxHp * 0.3) {
       finalDamage = Math.floor(finalDamage * 1.5);
+    }
+
+    // Class Berserker: Tăng tới 100% sát thương theo % máu đã mất
+    if (player.id === 'berserker') {
+      const hpPercent = player.hp / player.maxHp;
+      if (hpPercent <= 0.3) {
+        finalDamage = Math.floor(finalDamage * 2.0); // 100% bonus
+      } else {
+        const bonus = 1 + (1 - hpPercent);
+        finalDamage = Math.floor(finalDamage * bonus);
+      }
+    }
+    
+    // Phạt Sanity: Nếu Sanity < 30, giảm 30% sát thương do tay run
+    if ((player.sanity ?? 100) < 30) {
+      finalDamage = Math.max(1, Math.floor(finalDamage * 0.7));
     }
 
     const spawnBullet = (angleOffset: number, positionOffsetSide: number = 0) => {
@@ -440,7 +749,9 @@ export function triggerPlayerSkill() {
 
   const currentTime = performance.now();
   const lastSkillUsedTime = player.lastSkillUsedTime || 0;
-  const cooldown = player.id === 'knight' ? 12000 : (player.id === 'rogue' ? 4000 : 10000); // 12s / 4s / 10s
+  
+  const classDef = CHARACTER_CLASSES.find(c => c.id === player.id);
+  const cooldown = classDef ? classDef.skillCooldown : 10000;
 
   if (currentTime - lastSkillUsedTime < cooldown) return;
 
@@ -472,6 +783,31 @@ export function triggerPlayerSkill() {
     }
     setCameraShake(4);
   } 
+  else if (player.id === 'bomb_devil') {
+    // --- SKILL BOMB DEVIL: EXPLOSIVE CHAIN ---
+    // Ném 1 quả mìn (projectile) phát nổ siêu to
+    const angle = player.angle || 0;
+    addProjectile({
+      id: `bomb_skill_${Date.now()}`,
+      x: player.x,
+      y: player.y,
+      vx: Math.cos(angle) * 8, // Ném khá nhanh
+      vy: Math.sin(angle) * 8,
+      radius: 12, // Đầu nổ to
+      damage: 0, // Sát thương do nổ, không phải do chạm
+      owner: 'player',
+      color: '#ef4444', // Đỏ
+      createdAt: currentTime,
+      lifespan: 1000, // Phát nổ sau 1 giây
+      isExplosive: true // Cần logic riêng trong update loop hoặc khi hết lifespan
+    });
+    
+    // Tự lùi về sau 1 chút do lực ném
+    updatePlayer({
+      knockbackVx: -Math.cos(angle) * 6,
+      knockbackVy: -Math.sin(angle) * 6
+    });
+  }
   else if (player.id === 'rogue') {
     // --- SKILL ROGUE: DODGE ROLL (Nhào lộn né đạn) ---
     // Lấy hướng di chuyển của player để nhào lộn
@@ -521,9 +857,15 @@ export function triggerPlayerSkill() {
   } 
   else if (player.id === 'mage') {
     // --- SKILL MAGE: LIGHTNING CHAIN (Sét liên hoàn) ---
+    // Tiêu hao 30 MP (sanity)
+    if (player.sanity === undefined || player.sanity < 30) return;
+
     // 1. Tìm quái vật gần người chơi nhất trong phạm vi 350px
     let activeEnemies = [...enemies].filter(e => e.hp > 0);
     if (activeEnemies.length === 0) return;
+
+    // Trừ Mana
+    updatePlayer({ sanity: player.sanity - 30 });
 
     const maxTargets = 5;
     const chainTargets: Entity[] = [];

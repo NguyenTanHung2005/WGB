@@ -35,11 +35,12 @@ export interface CharacterClass {
 
 // --- ENTITY ---
 export type EntityType = 'player' | 'enemy' | 'boss' | 'ally';
-export type AIPattern = 'chase' | 'shoot' | 'charge' | 'summon' | 'follow';
+export type AIPattern = 'chase' | 'shoot' | 'charge' | 'summon' | 'follow' | 'ambush' | 'dash_attack' | 'teleport_attack';
 export type AnimationState = 'idle' | 'walk' | 'attack' | 'roll' | 'dead';
 
 export interface Entity {
   id: string;
+  name?: string;
   type: EntityType;
   x: number;
   y: number;
@@ -50,10 +51,18 @@ export interface Entity {
   maxHp: number;
   shield?: number;        // Chỉ player mới có
   maxShield?: number;
+  sanity?: number;        // Chỉ player
+  maxSanity?: number;     // Chỉ player
   speed: number;
   angle: number;          // Hướng nhìn (radian)
   activeWeaponIndex?: number;
-  weapons?: Weapon[];     // Chỉ player mang nhiều vũ khí
+  weapons?: Weapon[];     // Chỉ player mới có
+  exp?: number;           // Kinh nghiệm hiện tại (chỉ player)
+  level?: number;         // Cấp độ hiện tại (chỉ player)
+  statusEffects: ('burning'|'frozen'|'poisoned'|'stunned')[];
+  missingLimbs?: ('arm' | 'legs')[]; // Dành cho Dismemberment
+  
+  // Các field phụ trợ cho Animation & Logic:
   lastAttackTime?: number; // timestamp ms
   lastSkillUsedTime?: number; // timestamp ms
   skillActiveUntil?: number;  // timestamp ms khi skill hết hiệu lực
@@ -62,9 +71,13 @@ export interface Entity {
   templateId?: string;    // Dùng cho enemy/ally để vẽ hình
   lastAIShootTime?: number; // Cho quái bắn xa
   lastSummonTime?: number; // Cho quái gọi đệ
+  dashState?: 'warning' | 'dashing' | 'cooldown' | 'chase'; // Cho AI dash_attack và teleport_attack
+  lastDashTime?: number; // Cảnh báo thời gian
+  dashTargetX?: number;
+  dashTargetY?: number;
+  isAmbushing?: boolean; // Cho AI ambush
   damage?: number;        // Chỉ enemy/boss/ally mới có, hoặc sát thương va chạm
   color?: string;         // Vẽ tạm hoặc màu quái
-  statusEffects: string[];
   expireTime?: number;    // timestamp ms khi entity này tự biến mất (vd: Sói tinh linh)
   relics?: string[];      // Mảng chứa ID của các Relic (Chỉ player)
   
@@ -83,6 +96,8 @@ export interface Entity {
   lastRollTime?: number;    // Thời điểm roll gần nhất
   rollTargetX?: number;
   rollTargetY?: number;
+  comboCount?: number;
+  lastComboTime?: number;
 }
 
 // --- PROJECTILE ---
@@ -101,11 +116,29 @@ export interface Projectile {
   piercing?: boolean;     // Có xuyên thấu không?
   piercedEntities?: string[]; // Danh sách các ID đã xuyên qua
   element?: 'fire' | 'ice' | 'poison'; // Hiệu ứng nguyên tố
+  isExplosive?: boolean;  // Có phát nổ khi hết thời gian hoặc chạm quái không
+  isCrit?: boolean;       // Kích hoạt sát thương chí mạng
 }
 
 // --- ROOM ---
-export type RoomType = 'start' | 'combat' | 'chest' | 'shop' | 'boss';
+export type RoomType = 'start' | 'combat' | 'chest' | 'shop' | 'boss' | 'trap' | 'sacrifice';
 export type RoomState = 'unvisited' | 'active' | 'combat_lock' | 'cleared';
+export type Biome = 'dungeon' | 'blood' | 'abyss' | 'moss' | 'hell';
+
+export interface BloodDecal {
+  x: number;
+  y: number;
+  radius: number;
+  alpha: number;
+  type: 'splatter' | 'puddle';
+  color?: string;
+}
+
+export interface Pillar {
+  x: number;
+  y: number;
+  radius: number;
+}
 
 export interface RoomGates {
   north: boolean;       // Có cửa hướng Bắc không
@@ -126,6 +159,9 @@ export interface Room {
   enemiesSpawned: boolean;
   waveCount: number;      // Đã spawn bao nhiêu wave
   maxWaves: number;       // Tổng số wave trong phòng này
+  bloodDecals?: BloodDecal[]; // Các vũng máu trên sàn
+  pillars?: Pillar[];     // Cột đá chắn tầm nhìn
+  biome?: Biome;          // Hệ sinh thái của phòng (Màu sắc sàn/tường)
 }
 
 // --- DUNGEON MAP ---
@@ -147,12 +183,16 @@ export interface VFXParticle {
   decay: number;          // Tốc độ giảm alpha mỗi frame
   createdAt: number;
   lifespan: number;
+  type?: 'spark' | 'slash_trail' | 'limb_piece';
+  angle?: number;
 }
 
 export interface DamageNumber {
   id: string;
   x: number;
   y: number;
+  vx?: number;
+  vy?: number;
   value: number;
   color: string;
   isCrit: boolean;
@@ -202,7 +242,7 @@ export interface Shrine {
   x: number;
   y: number;
   radius: number;
-  type: 'health' | 'power' | 'ammo';
+  type: 'health' | 'power' | 'ammo' | 'sacrifice';
   used: boolean;
 }
 
@@ -230,6 +270,8 @@ export interface HealthPickup {
   id: string;
   x: number;
   y: number;
+  z?: number;
+  vz?: number;
   radius: number;
   amount: number;
 }
@@ -238,15 +280,29 @@ export interface GoldPickup {
   id: string;
   x: number;
   y: number;
+  z?: number;
+  vz?: number;
   radius: number;
   amount: number;
 }
 
 // --- RELIC PICKUP ---
+export interface ExpPickup {
+  id: string;
+  x: number;
+  y: number;
+  z?: number;
+  vz?: number;
+  radius: number;
+  amount: number;
+}
+
 export interface RelicPickup {
   id: string;
   x: number;
   y: number;
+  z?: number;
+  vz?: number;
   radius: number;
   relicId: string; // Trỏ tới ID trong file relics.ts
 }
@@ -256,6 +312,8 @@ export interface GroundWeapon {
   id: string;
   x: number;
   y: number;
+  z?: number;
+  vz?: number;
   radius: number;
   weapon: Weapon;
 }
@@ -269,4 +327,5 @@ export interface SpikeTrap {
   active: boolean;      // Đang nhô lên hay không
   nextToggleTime: number; // Thời điểm đảo trạng thái
   damage: number;
+  variant?: 'spike' | 'poison' | 'lava'; // Loại bẫy
 }

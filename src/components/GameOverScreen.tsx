@@ -1,87 +1,81 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Award, Coins, RefreshCw, Trophy, Skull } from 'lucide-react';
+
 export const GameOverScreen: React.FC = () => {
-  const { phase, gold, score, selectedClassId, resetGame } = useGameStore();
+  const { phase, score, resetGame } = useGameStore();
+  const [showButtons, setShowButtons] = useState(false);
 
   const isVictory = phase === 'victory';
 
-  const getClassName = (classId: string | null) => {
-    if (classId === 'knight') return 'Kỵ Sĩ';
-    if (classId === 'rogue') return 'Sát Thủ';
-    if (classId === 'mage') return 'Pháp Sư';
-    return 'Hiệp Sĩ';
-  };
+  // Chờ 3 giây trước khi hiện nút
+  useEffect(() => {
+    const t = setTimeout(() => setShowButtons(true), 3000);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[500px] w-full max-w-[900px] text-white p-6 bg-slate-950 rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 pointer-events-auto" style={{ animation: 'fadeIn 2s ease-in' }}>
       
-      {/* Background Neon Grids */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20 pointer-events-none" />
-      
-      {isVictory ? (
-        <div className="absolute top-10 left-1/2 transform -translate-x-1/2 w-64 h-64 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
-      ) : (
-        <div className="absolute top-10 left-1/2 transform -translate-x-1/2 w-64 h-64 bg-rose-500/10 rounded-full blur-[100px] pointer-events-none" />
+      {/* Background Gradient Máu (khi chết) hoặc Sáng (khi thắng) */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-50" 
+        style={{ 
+          background: isVictory 
+            ? 'radial-gradient(circle, rgba(16,185,129,0.2) 0%, rgba(0,0,0,1) 70%)'
+            : 'radial-gradient(circle, rgba(153,27,27,0.3) 0%, rgba(0,0,0,1) 70%)' 
+        }} 
+      />
+
+      {/* Dải ngang đen cắt giữa màn hình */}
+      <div className="absolute w-full h-48 bg-black/80 flex items-center justify-center shadow-[0_0_50px_rgba(0,0,0,1)]">
+        {/* TEXT CHÍNH */}
+        <h1 
+          className="text-7xl md:text-9xl font-serif tracking-[0.2em] font-normal"
+          style={{ 
+            fontFamily: 'var(--font-serif)',
+            color: isVictory ? '#fbbf24' : '#991b1b', // Vàng hoặc Đỏ sẫm máu
+            textShadow: isVictory ? '0 0 20px rgba(251,191,36,0.6)' : '0 0 20px rgba(153,27,27,0.8), 2px 2px 0px #000',
+            animation: 'scaleFadeIn 3s ease-out forwards',
+            opacity: 0,
+            transform: 'scale(0.9)'
+          }}
+        >
+          {isVictory ? 'VICTORY ACHIEVED' : 'YOU DIED'}
+        </h1>
+      </div>
+
+      {/* Score */}
+      {showButtons && (
+        <div className="absolute top-[60%] flex flex-col items-center animate-fade-in-slow z-10 w-full max-w-md">
+           <div className="grid grid-cols-2 gap-x-12 gap-y-4 mb-8 text-gray-400 font-serif tracking-widest text-sm" style={{ fontFamily: 'var(--font-serif)' }}>
+              <div className="text-right">SOULS RECOVERED:</div>
+              <div className="text-white font-bold">{score}</div>
+           </div>
+
+           <button 
+             onClick={resetGame}
+             className="text-gray-400 hover:text-white font-serif tracking-[0.3em] uppercase text-lg border-b border-transparent hover:border-white transition-all duration-300 pb-1"
+             style={{ fontFamily: 'var(--font-serif)' }}
+           >
+             Continue
+           </button>
+        </div>
       )}
 
-      {/* Biểu tượng chính */}
-      <div className="z-10 mb-6 animate-bounce">
-        {isVictory ? (
-          <div className="p-5 bg-emerald-950/80 border border-emerald-500 rounded-full text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
-            <Trophy className="w-16 h-16" />
-          </div>
-        ) : (
-          <div className="p-5 bg-rose-950/80 border border-rose-500 rounded-full text-rose-400 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
-            <Skull className="w-16 h-16" />
-          </div>
-        )}
-      </div>
-
-      {/* Tiêu đề */}
-      <h1 className={`z-10 text-4xl font-extrabold tracking-wider mb-2 font-mono uppercase text-center ${
-        isVictory 
-          ? 'text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]' 
-          : 'text-rose-500 drop-shadow-[0_0_10px_rgba(248,113,113,0.3)]'
-      }`}>
-        {isVictory ? 'Chiến Thắng Vinh Quang' : 'Bị Tiêu Diệt'}
-      </h1>
-      
-      <p className="z-10 text-slate-400 text-xs mb-8 font-semibold tracking-wide uppercase">
-        {isVictory 
-          ? 'Bạn đã quét sạch Boss Slime và thoát khỏi mê cung!' 
-          : 'Hành trình vượt ngục đã kết thúc đáng tiếc...'}
-      </p>
-
-      {/* Bảng tổng kết kết quả */}
-      <div className="z-10 flex flex-col gap-4 bg-slate-900/60 border border-slate-800/80 p-6 rounded-2xl w-full max-w-[400px] backdrop-blur-md mb-8 shadow-xl">
-        <div className="flex justify-between items-center text-sm border-b border-slate-800 pb-3">
-          <span className="text-slate-400 font-semibold">Nhân vật:</span>
-          <span className="font-extrabold text-cyan-400">{getClassName(selectedClassId)}</span>
-        </div>
-        
-        <div className="flex justify-between items-center text-sm border-b border-slate-800 pb-3">
-          <span className="text-slate-400 flex items-center gap-1.5 font-semibold">
-            <Coins className="w-4 h-4 text-amber-500 fill-amber-950" /> Vàng thu thập:
-          </span>
-          <span className="font-extrabold text-amber-400">{gold} Gold</span>
-        </div>
-
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-slate-400 flex items-center gap-1.5 font-semibold">
-            <Award className="w-4 h-4 text-emerald-400" /> Tổng điểm đạt được:
-          </span>
-          <span className="font-extrabold text-emerald-400">{score} Điểm</span>
-        </div>
-      </div>
-
-      {/* Nút Chơi Lại */}
-      <button 
-        onClick={resetGame}
-        className="z-10 flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-sky-600 hover:from-cyan-400 hover:to-sky-500 text-white font-extrabold px-8 py-3.5 rounded-xl border border-cyan-400/50 shadow-lg shadow-cyan-950/50 hover:shadow-cyan-900/40 transition-all duration-300 transform active:scale-95 cursor-pointer uppercase tracking-wider text-xs"
-      >
-        <RefreshCw className="w-4 h-4 animate-spin-slow" /> Trở về Menu chính
-      </button>
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes scaleFadeIn {
+          0% { opacity: 0; transform: scale(0.85); filter: blur(5px); }
+          100% { opacity: 1; transform: scale(1); filter: blur(0); }
+        }
+        .animate-fade-in-slow {
+          animation: fadeIn 2s ease-in forwards;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };

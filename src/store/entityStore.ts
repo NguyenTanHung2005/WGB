@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import type { 
   Entity, Projectile, VFXParticle, DamageNumber, 
-  Chest, Shrine, ShopItem, GoldPickup, HealthPickup, RelicPickup,
+  Chest, Shrine, ShopItem, GoldPickup, HealthPickup, RelicPickup, ExpPickup,
   DestructibleBarrel, ExplosiveBarrel, Portal, GroundWeapon, SpikeTrap, Anvil
 } from '../types/interfaces';
 import { WEAPONS } from '../data/weapons';
+import { ROOM_WIDTH, ROOM_HEIGHT, useMapStore } from './mapStore';
 
 interface EntityState {
   player: Entity | null;
@@ -20,6 +21,7 @@ interface EntityState {
 
   goldPickups: GoldPickup[];
   healthPickups: HealthPickup[];
+  expPickups: ExpPickup[];
   relicPickups: RelicPickup[];
   destructibleBarrels: DestructibleBarrel[];
   explosiveBarrels: ExplosiveBarrel[];
@@ -27,6 +29,8 @@ interface EntityState {
   spikeTraps: SpikeTrap[];
   portal: Portal | null;
   cameraShake: number; // Cường độ rung camera hiện tại
+  cameraShakeDx: number; // Hướng rung X
+  cameraShakeDy: number; // Hướng rung Y
 
   setPlayer: (player: Entity | null) => void;
   updatePlayer: (updater: Partial<Entity> | ((p: Entity) => Entity)) => void;
@@ -48,20 +52,28 @@ interface EntityState {
   
   addGoldPickup: (g: GoldPickup) => void;
   removeGoldPickup: (id: string) => void;
-
+  setGoldPickups: (goldPickups: GoldPickup[]) => void;
+  
   addHealthPickup: (h: HealthPickup) => void;
   removeHealthPickup: (id: string) => void;
-
-  addRelicPickup: (i: RelicPickup) => void;
+  setHealthPickups: (healthPickups: HealthPickup[]) => void;
+  
+  addExpPickup: (e: ExpPickup) => void;
+  removeExpPickup: (id: string) => void;
+  setExpPickups: (expPickups: ExpPickup[]) => void;
+  
+  addRelicPickup: (r: RelicPickup) => void;
   removeRelicPickup: (id: string) => void;
+  setRelicPickups: (relicPickups: RelicPickup[]) => void;
+  
+  addGroundWeapon: (w: GroundWeapon) => void;
+  removeGroundWeapon: (id: string) => void;
+  setGroundWeapons: (groundWeapons: GroundWeapon[]) => void;
   
   addDestructibleBarrel: (b: DestructibleBarrel) => void;
   removeDestructibleBarrel: (id: string) => void;
   addExplosiveBarrel: (b: ExplosiveBarrel) => void;
   removeExplosiveBarrel: (id: string) => void;
-  
-  addGroundWeapon: (w: GroundWeapon) => void;
-  removeGroundWeapon: (id: string) => void;
   
   addSpikeTrap: (t: SpikeTrap) => void;
   setSpikeTraps: (t: SpikeTrap[]) => void;
@@ -75,7 +87,7 @@ interface EntityState {
   addAnvil: (a: Anvil) => void;
   useAnvil: (id: string) => void;
   setPortal: (portal: Portal | null) => void;
-  setCameraShake: (intensity: number) => void;
+  setCameraShake: (intensity: number, dx?: number, dy?: number) => void;
   
   clearRoomEntities: () => void;
   spawnRoomElements: (roomType: string) => void;
@@ -95,6 +107,7 @@ export const useEntityStore = create<EntityState>((set) => ({
 
   goldPickups: [],
   healthPickups: [],
+  expPickups: [],
   relicPickups: [],
   destructibleBarrels: [],
   explosiveBarrels: [],
@@ -102,6 +115,8 @@ export const useEntityStore = create<EntityState>((set) => ({
   spikeTraps: [],
   portal: null,
   cameraShake: 0,
+  cameraShakeDx: 0,
+  cameraShakeDy: 0,
 
   setPlayer: (player) => set({ player }),
   
@@ -156,23 +171,28 @@ export const useEntityStore = create<EntityState>((set) => ({
   setDamageNumbers: (damageNumbers) => set({ damageNumbers }),
 
   addGoldPickup: (g) => set((state) => ({ goldPickups: [...state.goldPickups, g] })),
-  
   removeGoldPickup: (id) => set((state) => ({
     goldPickups: state.goldPickups.filter(g => g.id !== id)
   })),
-
+  setGoldPickups: (goldPickups) => set({ goldPickups }),
 
   addHealthPickup: (h) => set((state) => ({ healthPickups: [...state.healthPickups, h] })),
-  
   removeHealthPickup: (id) => set((state) => ({
     healthPickups: state.healthPickups.filter(h => h.id !== id)
   })),
+  setHealthPickups: (healthPickups) => set({ healthPickups }),
 
-  addRelicPickup: (i) => set((state) => ({ relicPickups: [...state.relicPickups, i] })),
-  
+  addExpPickup: (e) => set((state) => ({ expPickups: [...state.expPickups, e] })),
+  removeExpPickup: (id) => set((state) => ({
+    expPickups: state.expPickups.filter(e => e.id !== id)
+  })),
+  setExpPickups: (expPickups) => set({ expPickups }),
+
+  addRelicPickup: (r) => set((state) => ({ relicPickups: [...state.relicPickups, r] })),
   removeRelicPickup: (id) => set((state) => ({
     relicPickups: state.relicPickups.filter(i => i.id !== id)
   })),
+  setRelicPickups: (relicPickups) => set({ relicPickups }),
 
   addDestructibleBarrel: (b) => set((state) => ({ destructibleBarrels: [...state.destructibleBarrels, b] })),
   
@@ -187,10 +207,10 @@ export const useEntityStore = create<EntityState>((set) => ({
   })),
 
   addGroundWeapon: (w) => set((state) => ({ groundWeapons: [...state.groundWeapons, w] })),
-  
   removeGroundWeapon: (id) => set((state) => ({
     groundWeapons: state.groundWeapons.filter(w => w.id !== id)
   })),
+  setGroundWeapons: (groundWeapons) => set({ groundWeapons }),
 
   addSpikeTrap: (t) => set((state) => ({ spikeTraps: [...state.spikeTraps, t] })),
   setSpikeTraps: (spikeTraps) => set({ spikeTraps }),
@@ -221,7 +241,11 @@ export const useEntityStore = create<EntityState>((set) => ({
 
   setPortal: (portal) => set({ portal }),
 
-  setCameraShake: (cameraShake) => set({ cameraShake }),
+  setCameraShake: (cameraShake, dx, dy) => set(state => ({ 
+    cameraShake, 
+    cameraShakeDx: dx !== undefined ? dx : state.cameraShakeDx, 
+    cameraShakeDy: dy !== undefined ? dy : state.cameraShakeDy 
+  })),
 
   clearRoomEntities: () => set({
     enemies: [],
@@ -235,6 +259,7 @@ export const useEntityStore = create<EntityState>((set) => ({
     anvils: [],
     goldPickups: [],
     healthPickups: [],
+    expPickups: [],
     relicPickups: [],
     destructibleBarrels: [],
     explosiveBarrels: [],
@@ -409,11 +434,19 @@ export const useEntityStore = create<EntityState>((set) => ({
         });
       }
 
-      // Sinh bẫy gai ngẫu nhiên
+      // Sinh bẫy ngẫu nhiên theo biome
+      const { rooms, currentRoomId } = useMapStore.getState();
+      const currentBiome = rooms.find((r: any) => r.id === currentRoomId)?.biome || 'dungeon';
+      
       const trapCount = 2 + Math.floor(Math.random() * 4); // 2 - 5 bẫy
       for (let i = 0; i < trapCount; i++) {
         // Offset thời gian active để các bẫy thò lên thụt xuống không cùng lúc
         const offsetTimer = Math.random() * 2000;
+        
+        let variant: 'spike' | 'poison' | 'lava' = 'spike';
+        if (currentBiome === 'moss') variant = 'poison';
+        else if (currentBiome === 'hell' || currentBiome === 'blood') variant = 'lava';
+        else if (currentBiome === 'abyss') variant = Math.random() > 0.5 ? 'poison' : 'spike';
         spikeTraps.push({
           id: `spiketrap_${i}_${Date.now()}`,
           x: getRandomCoord(250, 650),
@@ -421,7 +454,8 @@ export const useEntityStore = create<EntityState>((set) => ({
           radius: 25,
           active: Math.random() > 0.5,
           nextToggleTime: performance.now() + 1000 + offsetTimer,
-          damage: 1
+          damage: variant === 'lava' ? 3 : (variant === 'poison' ? 1 : 2),
+          variant
         });
       }
     } 
@@ -432,17 +466,42 @@ export const useEntityStore = create<EntityState>((set) => ({
       explosiveBarrels.push({ id: 'tnt_boss_3', x: 100, y: 600, radius: 18, hp: 10, maxHp: 10 });
       explosiveBarrels.push({ id: 'tnt_boss_4', x: 800, y: 600, radius: 18, hp: 10, maxHp: 10 });
     }
+    else if (roomType === 'trap') {
+      // Bẫy gai rải rác
+      for (let i = 0; i < 35; i++) {
+        spikeTraps.push({
+          id: `trap_${Date.now()}_${i}`,
+          x: getRandomCoord(200, 1800),
+          y: getRandomCoord(200, 1300),
+          radius: 30,
+          active: Math.random() > 0.5,
+          nextToggleTime: Date.now() + Math.random() * 2000,
+          damage: 1
+        });
+      }
+      // Thùng nổ nguy hiểm
+      for (let i = 0; i < 15; i++) {
+        explosiveBarrels.push({
+          id: `barrel_exp_${Date.now()}_${i}`,
+          x: getRandomCoord(200, 1800),
+          y: getRandomCoord(200, 1300),
+          radius: 20,
+          hp: 1,
+          maxHp: 1
+        });
+      }
+    }
+    else if (roomType === 'sacrifice') {
+      shrines.push({
+        id: `blood_altar_${Date.now()}`,
+        x: ROOM_WIDTH / 2,
+        y: ROOM_HEIGHT / 2,
+        radius: 30,
+        type: 'sacrifice',
+        used: false
+      });
+    }
 
-    set({
-      chests,
-      shrines,
-      shopItems,
-      anvils,
-      destructibleBarrels,
-      explosiveBarrels,
-      groundWeapons,
-      spikeTraps,
-      portal: null
-    });
+    set({ chests, shrines, shopItems, anvils, destructibleBarrels, explosiveBarrels, groundWeapons, spikeTraps, portal: null });
   }
 }));

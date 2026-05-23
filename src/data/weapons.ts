@@ -107,5 +107,44 @@ export const WEAPONS: Weapon[] = [
     projectileSpeed: 16,
     range: 500,
     color: '#a3e635'
+  },
+  {
+    id: 'kunai',
+    name: 'Kunai Bóng Tối',
+    type: 'ranged',
+    damage: 4,
+    fireRate: 250,
+    projectileSpeed: 15,
+    range: 400,
+    color: '#94a3b8'
+  },
+  {
+    id: 'blood_grimoire',
+    name: 'Huyết Thư',
+    type: 'magic',
+    damage: 12,
+    fireRate: 800,
+    projectileSpeed: 7,
+    range: 500,
+    color: '#991b1b'
+  },
+  {
+    id: 'holy_mace',
+    name: 'Búa Thánh',
+    type: 'melee',
+    damage: 14,
+    fireRate: 600,
+    range: 80,
+    color: '#fef08a'
+  },
+  {
+    id: 'bomb_detonator',
+    name: 'Kíp Nổ Reze',
+    type: 'magic',
+    damage: 25,
+    fireRate: 1000,
+    projectileSpeed: 5,
+    range: 300,
+    color: '#ef4444'
   }
 ];

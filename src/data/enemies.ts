@@ -20,7 +20,7 @@ export const ENEMY_TEMPLATES: EnemyTemplate[] = [
     speed: 2.5,
     radius: 16,
     damage: 3,
-    aiPattern: 'chase',
+    aiPattern: 'dash_attack',
     attackCooldown: 1000,
     color: '#14532d' // Xanh rêu tối
   },
@@ -53,7 +53,7 @@ export const ENEMY_TEMPLATES: EnemyTemplate[] = [
     speed: 2.8,
     radius: 14,
     damage: 4,
-    aiPattern: 'chase',
+    aiPattern: 'ambush',
     attackCooldown: 800,
     color: '#52525b' // Xám kẽm
   },
@@ -67,7 +67,61 @@ export const ENEMY_TEMPLATES: EnemyTemplate[] = [
     aiPattern: 'summon',
     attackCooldown: 4000, // 4 giây gọi đệ 1 lần
     color: '#3b0764' // Tím đen
+  },
+  {
+    id: 'weeping_wraith',
+    name: 'Oán Linh Máu (Weeping Wraith)',
+    maxHp: 25,
+    speed: 2.0,
+    radius: 16,
+    damage: 3,
+    aiPattern: 'teleport_attack', // Sẽ cần cập nhật aiPattern này hoặc map về dash_attack tạm thời
+    attackCooldown: 2500,
+    color: '#9f1239' // Đỏ huyết tẩm
+  },
+  {
+    id: 'flesh_golem',
+    name: 'Golem Xác Thịt (Flesh Golem)',
+    maxHp: 80, // Rất trâu
+    speed: 0.8, // Đi siêu chậm
+    radius: 28, // Lớn
+    damage: 8,  // Đánh rất đau
+    aiPattern: 'chase', 
+    attackCooldown: 3000,
+    color: '#713f12' // Nâu xỉn thịt ôi
+  },
+  {
+    id: 'chainsaw_fiend',
+    name: 'Ác Quỷ Cưa (Chainsaw Fiend)',
+    maxHp: 40,
+    speed: 3.5,
+    radius: 18,
+    damage: 6,
+    aiPattern: 'dash_attack',
+    attackCooldown: 800,
+    color: '#b91c1c' // Đỏ chót
+  },
+  {
+    id: 'blood_priest',
+    name: 'Tu Sĩ Máu (Blood Priest)',
+    maxHp: 25,
+    speed: 2.0,
+    radius: 15,
+    damage: 4,
+    aiPattern: 'shoot',
+    attackCooldown: 1200,
+    color: '#881337' // Đỏ sẫm
   }
+];
+
+export const BOSS_NAMES = [
+  'REZE THE BOMB DEVIL',
+  'FLESH AMALGAMATION',
+  'THE FORSAKEN ONE',
+  'LORD OF DECAY',
+  'BLOOD STARVED BEAST',
+  'ORPHAN OF THE ABYSS',
+  'GOREBEAST OF THE DEPTHS'
 ];
 
 export const BOSS_TEMPLATE = {

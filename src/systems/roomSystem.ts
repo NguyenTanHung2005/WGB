@@ -1,7 +1,7 @@
 import { useEntityStore } from '../store/entityStore';
 import { useMapStore, ROOM_WIDTH, ROOM_HEIGHT, WALL_THICKNESS } from '../store/mapStore';
 import { useGameStore } from '../store/gameStore';
-import { ENEMY_TEMPLATES, BOSS_TEMPLATE } from '../data/enemies';
+import { ENEMY_TEMPLATES, BOSS_TEMPLATE, BOSS_NAMES } from '../data/enemies';
 
 let isWaitingForWave = false;
 
@@ -80,6 +80,17 @@ export function runRoomSystem(_delta: number) {
       if (nextRoom.state === 'unvisited') {
         setRoomState(nextRoomId, 'active');
       }
+
+      // 5. Trigger Boss Cutscene nếu chưa xem
+      const gameStoreState = useGameStore.getState();
+      if (nextRoom.type === 'boss' && !gameStoreState.bossCutsceneViewed) {
+        gameStoreState.setBossCutsceneViewed(true);
+        // Ngừng nhân vật di chuyển
+        updatePlayer({ vx: 0, vy: 0, animState: 'idle' });
+        // Chuyển sang cutscene
+        gameStoreState.setPhase('cutscene_boss');
+      }
+
       return; // Kết thúc tick xử lý chuyển phòng
     }
   }
@@ -93,6 +104,7 @@ export function runRoomSystem(_delta: number) {
       setRoomState(currentRoom.id, 'combat_lock');
       
       isWaitingForWave = true;
+      useGameStore.getState().setAnnouncement('WAVE 1', currentRoom.maxWaves > 1 ? `1 / ${currentRoom.maxWaves}` : 'Fight!', 2000);
       // Spawn wave 1 sau 800ms để người chơi kịp chuẩn bị
       setTimeout(() => {
         spawnWave(currentRoom.type as 'combat' | 'boss', 1);
@@ -101,36 +113,61 @@ export function runRoomSystem(_delta: number) {
       }, 800);
     } 
     
-    // Nếu đang trong trạng thái khóa chiến đấu, đã bắt đầu xuất hiện wave đầu tiên, mà quái chết sạch
-    else if (currentRoom.state === 'combat_lock' && currentRoom.waveCount > 0 && enemies.filter(e => e.hp > 0).length === 0 && !isWaitingForWave) {
-      const nextWave = currentRoom.waveCount + 1;
-      
-      if (nextWave <= currentRoom.maxWaves) {
-        // Vẫn còn wave quái tiếp theo
-        isWaitingForWave = true;
-        incrementWave(currentRoom.id);
-        setTimeout(() => {
-          spawnWave(currentRoom.type as 'combat' | 'boss', nextWave);
-          isWaitingForWave = false;
-        }, 1000);
-      } else {
-        // Đã quét sạch các wave quái -> Mở phòng!
-        setRoomState(currentRoom.id, 'cleared');
-        addScore(currentRoom.type === 'boss' ? 1000 : 100);
+    // Nếu đang trong trạng thái khóa chiến đấu, đã bắt đầu xuất hiện wave đầu tiên
+    else if (currentRoom.state === 'combat_lock' && currentRoom.waveCount > 0 && !isWaitingForWave) {
+      const allEnemiesDead = enemies.filter(e => e.hp > 0).length === 0;
+      const bossDead = currentRoom.type === 'boss' && enemies.some(e => e.type === 'boss' && e.hp <= 0 && e.hp > -9999);
 
-        if (currentRoom.type === 'boss') {
-          // BOSS CHẾT -> Chuyển sang Cutscene
-          useGameStore.getState().setPhase('cutscene_ending');
+      if (allEnemiesDead || bossDead) {
+        if (bossDead) {
+          // BOSS CHẾT -> Slow motion toàn cục và chờ 5 giây trước khi Ending
+          useGameStore.getState().triggerHitStop(500); // Khựng màn hình
+          useGameStore.getState().setAnnouncement('BOSS DEFEATED', 'The Nightmare is Over', 5000);
+          
+          setTimeout(() => {
+            setRoomState(currentRoom.id, 'cleared');
+            addScore(1000);
+            useGameStore.getState().setPhase('cutscene_ending');
+          }, 5000);
+          
+          // Tránh trigger lại nhiều lần bằng cách xóa boss khỏi enemies hoặc đánh dấu nó
+          const boss = enemies.find(e => e.type === 'boss');
+          if (boss) {
+            useEntityStore.getState().updateEnemy(boss.id, { hp: -9999 }); // Đánh dấu đã trigger timeout
+          }
         } else {
-          // COMBAT CLEAR -> Rơi rương kho báu phần thưởng
-          addChest({
-            id: `reward_chest_${currentRoom.id}`,
-            x: ROOM_WIDTH / 2,
-            y: ROOM_HEIGHT / 2,
-            radius: 20,
-            type: 'normal',
-            opened: false
-          });
+          const nextWave = currentRoom.waveCount + 1;
+          
+          if (nextWave <= currentRoom.maxWaves) {
+            // Vẫn còn wave quái tiếp theo
+            isWaitingForWave = true;
+            incrementWave(currentRoom.id);
+            const isFinalWave = nextWave === currentRoom.maxWaves;
+            useGameStore.getState().setAnnouncement(isFinalWave ? 'FINAL WAVE' : `WAVE ${nextWave}`, `${nextWave} / ${currentRoom.maxWaves}`, 2000);
+            setTimeout(() => {
+              spawnWave(currentRoom.type as 'combat' | 'boss', nextWave);
+              isWaitingForWave = false;
+            }, 1000);
+          } else {
+            // Đã quét sạch các wave quái -> Mở phòng!
+            setRoomState(currentRoom.id, 'cleared');
+            useGameStore.getState().setAnnouncement('ROOM CLEARED', '+100 Gold', 2000);
+            addScore(100);
+            useGameStore.getState().addGold(100);
+            
+            // Hồi 15 Sanity cho người chơi khi vượt qua 1 phòng
+            updatePlayer({ sanity: Math.min(player.maxSanity || 100, (player.sanity || 100) + 15) });
+
+            // COMBAT CLEAR -> Rơi rương kho báu phần thưởng
+            addChest({
+              id: `reward_chest_${currentRoom.id}`,
+              x: ROOM_WIDTH / 2,
+              y: ROOM_HEIGHT / 2,
+              radius: 20,
+              type: 'normal',
+              opened: false
+            });
+          }
         }
       }
     }
@@ -161,8 +198,10 @@ export function runRoomSystem(_delta: number) {
   function spawnWave(type: 'combat' | 'boss', _waveNum: number) {
     if (type === 'boss') {
       // Spawn Boss
+      const randomBossName = BOSS_NAMES[Math.floor(Math.random() * BOSS_NAMES.length)];
       addEnemy({
         id: BOSS_TEMPLATE.id,
+        name: randomBossName,
         type: 'boss',
         x: ROOM_WIDTH / 2,
         y: ROOM_HEIGHT / 2 - 50,

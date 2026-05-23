@@ -57,6 +57,18 @@ export function runAISystem(_delta: number) {
       targetVx = dx / dist;
       targetVy = dy / dist;
 
+      // Zombie Dash: Nếu máu < 50% và ở khoảng cách trung bình, thỉnh thoảng lao tới
+      if (enemy.templateId === 'melee_zombie' && enemy.hp < enemy.maxHp * 0.5) {
+        const lastDashTime = (enemy as any).lastDashTime || 0;
+        if (dist > 80 && dist < 200 && currentTime - lastDashTime > 3000) {
+          updateEnemy(enemy.id, { 
+            vx: targetVx * enemy.speed * 4, // Tốc độ x4
+            vy: targetVy * enemy.speed * 4,
+            lastDashTime: currentTime 
+          } as any);
+        }
+      }
+
       // Quái thường: Tấn công cận chiến khi áp sát
       if (enemy.type !== 'boss') {
         const attackDist = enemy.radius + player.radius + 8;
@@ -65,7 +77,11 @@ export function runAISystem(_delta: number) {
           const cooldown = enemy.speed * 400;
           if (currentTime - lastAttackTime >= cooldown) {
             updateEnemy(enemy.id, { lastAttackTime: currentTime });
-            dealDamageToPlayer(enemy.damage!, player, currentTime, enemy.element);
+            let finalEnemyDamage = enemy.damage!;
+            if (enemy.missingLimbs?.includes('arm')) {
+              finalEnemyDamage = Math.max(1, Math.floor(finalEnemyDamage * 0.5));
+            }
+            dealDamageToPlayer(finalEnemyDamage, player, currentTime, enemy.element, enemy.x, enemy.y);
           }
         }
       } else {
@@ -97,14 +113,33 @@ export function runAISystem(_delta: number) {
 
       // Tấn công bắn đạn từ xa
       const lastAIShootTime = enemy.lastAIShootTime || 0;
-      const cooldown = 1500; // 1.5 giây bắn 1 lần
-      if (currentTime - lastAIShootTime >= cooldown && dist < 450) {
+      const attackCooldown = enemy.templateId === 'ranged_skeleton' ? 2500 : 1500; 
+      
+      if (currentTime - lastAIShootTime >= attackCooldown && dist < 450) {
         updateEnemy(enemy.id, { lastAIShootTime: currentTime });
         
+        let projVx = dx / dist;
+        let projVy = dy / dist;
+
+        // Ngắm bắn tiên đoán (Predictive Aiming) cho Skeleton
+        if (enemy.templateId === 'ranged_skeleton') {
+           const bulletSpeed = 5;
+           const timeToHit = dist / bulletSpeed;
+           const predictedX = player.x + player.vx * timeToHit * 0.5;
+           const predictedY = player.y + player.vy * timeToHit * 0.5;
+           const pdx = predictedX - enemy.x;
+           const pdy = predictedY - enemy.y;
+           const pDist = Math.sqrt(pdx * pdx + pdy * pdy);
+           if (pDist > 0) {
+             projVx = pdx / pDist;
+             projVy = pdy / pDist;
+           }
+        }
+
         // Spawn đạn đỏ hướng tới Player
         const speed = 5;
-        const vx = Math.cos(angle) * speed;
-        const vy = Math.sin(angle) * speed;
+        const vx = projVx * speed;
+        const vy = projVy * speed;
 
         addProjectile({
           id: `enemy_bullet_${Date.now()}_${enemy.id}`,
@@ -133,6 +168,148 @@ export function runAISystem(_delta: number) {
         // Kích nổ tự sát
         updateEnemy(enemy.id, { hp: 0 }); // Quái chết ngay lập tức
         triggerExplosion(enemy.x, enemy.y, enemy.damage!, 90, currentTime);
+      }
+    }
+    else if (enemy.aiPattern === 'ambush') {
+      // GIẢ CHẾT: Đứng im. Nếu Player đến gần 150px thì sống dậy chuyển thành 'chase'
+      if (!enemy.isAmbushing) {
+        targetVx = 0;
+        targetVy = 0;
+        if (dist <= 150) {
+          updateEnemy(enemy.id, { isAmbushing: true, aiPattern: 'chase' });
+          addDamageNumber({
+            id: `ambush_${Date.now()}_${enemy.id}`, x: enemy.x, y: enemy.y - 20,
+            value: 0, color: '#ef4444', isCrit: true, text: 'AWAKE!',
+            createdAt: currentTime, lifespan: 1000
+          } as any);
+        }
+      }
+    }
+    else if (enemy.aiPattern === 'dash_attack') {
+      // LƯỚT TẤN CÔNG (Telegraphing)
+      const state = enemy.dashState || 'cooldown';
+      const lastDash = enemy.lastDashTime || 0;
+
+      if (state === 'cooldown') {
+        // Đi chậm về phía người chơi
+        targetVx = (dx / dist) * 0.5;
+        targetVy = (dy / dist) * 0.5;
+        
+        if (dist < 200 && currentTime - lastDash > 4000) {
+          updateEnemy(enemy.id, { 
+            dashState: 'warning', 
+            lastDashTime: currentTime,
+            dashTargetX: dx / dist, // Lưu trước hướng lao tới
+            dashTargetY: dy / dist
+          });
+        }
+      } else if (state === 'warning') {
+        // Đứng yên nhấp nháy đỏ (Telegraphing)
+        targetVx = 0;
+        targetVy = 0;
+        if (currentTime - lastDash > 800) { // 0.8s cảnh báo
+          updateEnemy(enemy.id, { 
+            dashState: 'dashing', 
+            lastDashTime: currentTime
+          });
+        }
+      } else if (state === 'dashing') {
+        // Lao đi cực nhanh
+        const dashDirX = enemy.dashTargetX || 0;
+        const dashDirY = enemy.dashTargetY || 0;
+        targetVx = dashDirX * 3.5;
+        targetVy = dashDirY * 3.5;
+
+        if (currentTime - lastDash > 600) {
+          updateEnemy(enemy.id, { dashState: 'cooldown', lastDashTime: currentTime });
+        }
+      }
+
+      // Tấn công cận chiến khi áp sát
+      const attackDist = enemy.radius + player.radius + 8;
+      if (dist <= attackDist) {
+        const lastAttackTime = enemy.lastAttackTime || 0;
+        const cooldown = 1000;
+        if (currentTime - lastAttackTime >= cooldown) {
+          updateEnemy(enemy.id, { lastAttackTime: currentTime });
+          let finalEnemyDamage = enemy.damage!;
+          if (enemy.missingLimbs?.includes('arm')) {
+            finalEnemyDamage = Math.max(1, Math.floor(finalEnemyDamage * 0.5));
+          }
+          dealDamageToPlayer(finalEnemyDamage * (state === 'dashing' ? 2 : 1), player, currentTime, enemy.element, enemy.x, enemy.y);
+        }
+      }
+    }
+    else if (enemy.aiPattern === 'teleport_attack') {
+      // OÁN LINH MÁU: Dịch chuyển tức thời ra sau lưng Player
+      const state = enemy.dashState || 'chase';
+      const lastTeleport = enemy.lastDashTime || 0;
+
+      if (state === 'chase') {
+        // Trôi lờ đờ về phía người chơi
+        targetVx = (dx / dist) * 0.4;
+        targetVy = (dy / dist) * 0.4;
+        
+        if (dist < 300 && dist > 100 && currentTime - lastTeleport > 3500) {
+          // Tính toán trước vị trí dịch chuyển để làm cảnh báo
+          const backDistance = 80;
+          let pAngle = Math.atan2(player.vy, player.vx);
+          if (player.vx === 0 && player.vy === 0) pAngle = Math.random() * Math.PI * 2;
+          
+          const teleX = player.x - Math.cos(pAngle) * backDistance;
+          const teleY = player.y - Math.sin(pAngle) * backDistance;
+
+          updateEnemy(enemy.id, { 
+            dashState: 'warning', 
+            lastDashTime: currentTime,
+            dashTargetX: teleX,
+            dashTargetY: teleY
+          });
+        }
+      } else if (state === 'warning') {
+        // Đứng lại rên rỉ (Telegraphing) - biến mất dần
+        targetVx = 0;
+        targetVy = 0;
+        if (currentTime - lastTeleport > 1000) {
+          // Thực hiện dịch chuyển
+          const teleX = enemy.dashTargetX || player.x;
+          const teleY = enemy.dashTargetY || player.y;
+
+          // Hạt máu tại vị trí cũ
+          triggerExplosion(enemy.x, enemy.y, 0, 15, currentTime, '#9f1239');
+
+          updateEnemy(enemy.id, { 
+            dashState: 'cooldown', 
+            lastDashTime: currentTime,
+            x: teleX,
+            y: teleY
+          });
+
+          // Hạt máu tại vị trí mới
+          triggerExplosion(teleX, teleY, 0, 15, currentTime, '#9f1239');
+        }
+      } else if (state === 'cooldown') {
+        // Lao vào cắn xé sau khi dịch chuyển
+        targetVx = (dx / dist) * 1.5;
+        targetVy = (dy / dist) * 1.5;
+        if (currentTime - lastTeleport > 2000) {
+          updateEnemy(enemy.id, { dashState: 'chase' });
+        }
+      }
+
+      // Tấn công cận chiến khi áp sát
+      const attackDist = enemy.radius + player.radius + 12;
+      if (dist <= attackDist) {
+        const lastAttackTime = enemy.lastAttackTime || 0;
+        const cooldown = 1000;
+        if (currentTime - lastAttackTime >= cooldown) {
+          updateEnemy(enemy.id, { lastAttackTime: currentTime });
+          let finalEnemyDamage = enemy.damage!;
+          if (enemy.missingLimbs?.includes('arm')) {
+            finalEnemyDamage = Math.max(1, Math.floor(finalEnemyDamage * 0.5));
+          }
+          dealDamageToPlayer(finalEnemyDamage * (state === 'cooldown' ? 1.5 : 1), player, currentTime, enemy.element, enemy.x, enemy.y);
+        }
       }
     }
     else if (enemy.aiPattern === 'summon') {
@@ -303,7 +480,7 @@ export function runAISystem(_delta: number) {
   });
 
   // --- HÀM GÂY SÁT THƯƠNG LÊN PLAYER ---
-  function dealDamageToPlayer(damage: number, p: Entity, time: number, element?: 'fire' | 'ice' | 'poison') {
+  function dealDamageToPlayer(damage: number, p: Entity, time: number, element?: 'fire' | 'ice' | 'poison', sourceX?: number, sourceY?: number) {
     if (isPlayerRolling) return; // Đang lộn nhào né -> vô địch
 
     updatePlayer(prev => {
@@ -315,6 +492,23 @@ export function runAISystem(_delta: number) {
       let nextHp = hp;
 
       if (shield > 0) {
+        // Knight: Khiên phản đòn
+        if (prev.id === 'knight' && sourceX !== undefined && sourceY !== undefined) {
+          const dx = sourceX - prev.x;
+          const dy = sourceY - prev.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          if (len > 0) {
+            useEntityStore.getState().addProjectile({
+              id: `knight_reflect_${Date.now()}`,
+              owner: 'player',
+              x: prev.x, y: prev.y,
+              vx: (dx / len) * 8, vy: (dy / len) * 8,
+              radius: 6, damage: 15, color: '#facc15', lifespan: 500,
+              createdAt: performance.now()
+            });
+          }
+        }
+
         if (shield >= finalDmg) {
           nextShield = shield - finalDmg;
           finalDmg = 0;
@@ -336,10 +530,15 @@ export function runAISystem(_delta: number) {
         }
       }
 
+      // Trừ Sanity khi bị sát thương
+      const currentSanity = prev.sanity ?? 100;
+      const nextSanity = Math.max(0, currentSanity - 5);
+
       return {
         ...prev,
         hp: nextHp,
         shield: nextShield,
+        sanity: nextSanity,
         lastHitTime: time,
         hitFlashActive: true,
         hitFlashStart: time,
@@ -359,17 +558,37 @@ export function runAISystem(_delta: number) {
       lifespan: 600
     });
 
-    // Rung màn hình
-    setCameraShake(damage * 2.5);
+    // Tính hướng va chạm (nếu có sourceX, sourceY)
+    let hitDx = 0;
+    let hitDy = 0;
+    if (sourceX !== undefined && sourceY !== undefined) {
+      const angle = Math.atan2(p.y - sourceY, p.x - sourceX);
+      hitDx = Math.cos(angle);
+      hitDy = Math.sin(angle);
+    }
 
-    // Hạt đỏ tóe ra
+    // Rung màn hình có hướng
+    setCameraShake(damage * 2.5, hitDx, hitDy);
+
+    // Hạt đỏ tóe ra (máu văng theo hướng va chạm)
     for (let k = 0; k < 8; k++) {
+      const randAngle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 4 + 2;
+      let vx = Math.cos(randAngle) * speed;
+      let vy = Math.sin(randAngle) * speed;
+      
+      // Máu xịt mạnh về phía bị đẩy
+      if (hitDx !== 0 || hitDy !== 0) {
+        vx += hitDx * 5;
+        vy += hitDy * 5;
+      }
+
       addParticle({
         id: `player_blood_${Date.now()}_${k}`,
         x: p.x,
         y: p.y,
-        vx: (Math.random() - 0.5) * 5,
-        vy: (Math.random() - 0.5) * 5,
+        vx: vx,
+        vy: vy,
         radius: 2 + Math.random() * 2,
         color: '#f87171',
         alpha: 0.9,
@@ -381,7 +600,7 @@ export function runAISystem(_delta: number) {
   }
 
   // --- HÀM PHÁT NỔ (TNT HOẶC DƠI TỰ SÁT) ---
-  function triggerExplosion(ex: number, ey: number, damage: number, radius: number, time: number) {
+  function triggerExplosion(ex: number, ey: number, damage: number, radius: number, time: number, color?: string) {
     setCameraShake(6);
     
     // Tạo 30 hạt hiệu ứng nổ rực rỡ (Cam - Đỏ - Vàng)
@@ -396,7 +615,7 @@ export function runAISystem(_delta: number) {
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         radius: 3 + Math.random() * 5,
-        color: colors[Math.floor(Math.random() * colors.length)],
+        color: color || colors[Math.floor(Math.random() * colors.length)],
         alpha: 1.0,
         decay: 0.03 + Math.random() * 0.03,
         createdAt: time,
@@ -407,7 +626,7 @@ export function runAISystem(_delta: number) {
     // 1. Kiểm tra sát thương lên Player
     const playerDist = Math.sqrt((player!.x - ex) ** 2 + (player!.y - ey) ** 2);
     if (playerDist <= radius + player!.radius) {
-      dealDamageToPlayer(damage, player!, time);
+      dealDamageToPlayer(damage, player!, time, undefined, ex, ey);
     }
 
     // 2. Sát thương lan lên quái vật xung quanh (Friendly fire!)
@@ -466,7 +685,7 @@ export function runAISystem(_delta: number) {
 
   // --- HÀM TẤN CÔNG ĐẶC BIỆT CỦA BOSS (GRAND SLIME) ---
   function triggerBossSpecialAttack(boss: Entity, p: Entity, time: number) {
-    const isEnraged = boss.hp < boss.maxHp * 0.5;
+    const isEnraged = boss.hp < boss.maxHp * 0.3;
     const rand = Math.random();
 
     if (rand < 0.4) {

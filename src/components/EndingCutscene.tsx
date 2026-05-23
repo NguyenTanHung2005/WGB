@@ -11,7 +11,7 @@ export const EndingCutscene: React.FC = () => {
 
   useEffect(() => {
     // Step 0: Nhân vật thở dốc (đứng yên)
-    updatePlayer({ animState: 'idle' });
+    updatePlayer({ animState: 'idle', vx: 0, vy: 0 });
 
     const timeouts = [
       setTimeout(() => {

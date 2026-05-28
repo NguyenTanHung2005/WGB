@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useEntityStore } from '../store/entityStore';
 
@@ -11,9 +11,9 @@ interface Dialogue {
   text: string;
 }
 
-const CLASS_INTRO_DATA: Record<string, { video: string, dialogues: Dialogue[] }> = {
+const CLASS_INTRO_DATA: Record<string, { image: string, dialogues: Dialogue[] }> = {
   'knight': {
-    video: '/videos/knight_intro.mp4',
+    image: '/images/cutscenes/knight_intro.png',
     dialogues: [
       { speaker: 'Lính Đánh Thuê', text: "Lại một chiến trường mục nát khác... Mùi máu tanh vẫn vậy." },
       { speaker: 'Giọng Nói Bí Ẩn', text: "Thanh gươm của ngươi đã hoen rỉ, nhưng sát ý thì vẫn còn nguyên..." },
@@ -21,7 +21,7 @@ const CLASS_INTRO_DATA: Record<string, { video: string, dialogues: Dialogue[] }>
     ]
   },
   'rogue': {
-    video: '/videos/rogue_intro.mp4',
+    image: '/images/cutscenes/rogue_intro.png',
     dialogues: [
       { speaker: 'Giọng Nói Bí Ẩn', text: "Một con chuột nhắt lẻn vào cõi chết..." },
       { speaker: 'Kẻ Ngoại Đạo', text: "Ta không đến đây để chết. Có một thứ ta cần phải đoạt lại." },
@@ -29,7 +29,7 @@ const CLASS_INTRO_DATA: Record<string, { video: string, dialogues: Dialogue[] }>
     ]
   },
   'mage': {
-    video: '/videos/mage_intro.mp4',
+    image: '/images/cutscenes/mage_intro.png',
     dialogues: [
       { speaker: 'Tu Sĩ Bóng Tối', text: "Bóng tối ở đây... thật thuần khiết." },
       { speaker: 'Giọng Nói Bí Ẩn', text: "Ngươi định dùng thứ tà thuật rẻ tiền đó để sinh tồn sao?" },
@@ -37,7 +37,7 @@ const CLASS_INTRO_DATA: Record<string, { video: string, dialogues: Dialogue[] }>
     ]
   },
   'archer': {
-    video: '/videos/archer_intro.mp4',
+    image: '/images/cutscenes/archer_intro.png',
     dialogues: [
       { speaker: 'Kẻ Săn Đêm', text: "Bóng tối là đồng minh của ta. Mũi tên này không bao giờ trượt." },
       { speaker: 'Giọng Nói Bí Ẩn', text: "Nhưng ở đây, bóng tối là kẻ thù có hàng vạn đôi mắt..." },
@@ -45,7 +45,7 @@ const CLASS_INTRO_DATA: Record<string, { video: string, dialogues: Dialogue[] }>
     ]
   },
   'summoner': {
-    video: '/videos/summoner_intro.mp4',
+    image: '/images/cutscenes/summoner_intro.png',
     dialogues: [
       { speaker: 'Phù Thủy Huyết Ngải', text: "Nỗi đau... ta cần nhiều nỗi đau hơn nữa để nuôi dưỡng các con cưng của mình." },
       { speaker: 'Hệ Thống', text: "Ấn chú đẫm máu trên trán kẻ cuồng tín rực sáng." },
@@ -53,7 +53,7 @@ const CLASS_INTRO_DATA: Record<string, { video: string, dialogues: Dialogue[] }>
     ]
   },
   'paladin': {
-    video: '/videos/paladin_intro.mp4',
+    image: '/images/cutscenes/paladin_intro.png',
     dialogues: [
       { speaker: 'Kẻ Tử Đạo', text: "Nhân danh Ánh sáng, ta sẽ thanh tẩy nơi ô uế này!" },
       { speaker: 'Giọng Nói Bí Ẩn', text: "Kẻ mù lòa vì đức tin... Ngươi sẽ chỉ tìm thấy cái chết thảm khốc." },
@@ -61,7 +61,7 @@ const CLASS_INTRO_DATA: Record<string, { video: string, dialogues: Dialogue[] }>
     ]
   },
   'berserker': {
-    video: '/videos/berserker_intro.mp4',
+    image: '/images/cutscenes/berserker_intro.png',
     dialogues: [
       { speaker: 'Linh Hồn Bị Nguyền', text: "MÁU! TA CẦN MÁU... MỌI THỨ PHẢI CHẾT!" },
       { speaker: 'Giọng Nói Bí Ẩn', text: "Cơn điên loạn đã ăn mòn lý trí của ngươi rồi sao?" },
@@ -69,7 +69,7 @@ const CLASS_INTRO_DATA: Record<string, { video: string, dialogues: Dialogue[] }>
     ]
   },
   'ninja': {
-    video: '/videos/ninja_intro.mp4',
+    image: '/images/cutscenes/ninja_intro.png',
     dialogues: [
       { speaker: 'Hệ Thống', text: "*Một cơn gió lạnh lướt qua, không một tiếng động.*" },
       { speaker: 'Sát Thủ Bóng Đêm', text: "Nhiệm vụ lần này... là dọn sạch cõi âm." },
@@ -77,7 +77,7 @@ const CLASS_INTRO_DATA: Record<string, { video: string, dialogues: Dialogue[] }>
     ]
   },
   'bomb_devil': {
-    video: '/videos/bomb_devil_intro.mp4',
+    image: '/images/cutscenes/bomb_devil_intro.png',
     dialogues: [
       { speaker: 'Hệ Thống', text: "*Cô gái trong bộ đồng phục mỉm cười giật chốt trên cổ.*" },
       { speaker: 'Reze (Quỷ Boom)', text: "Bùm! Các cậu ở dưới này có vẻ buồn chán nhỉ?" },
@@ -86,7 +86,7 @@ const CLASS_INTRO_DATA: Record<string, { video: string, dialogues: Dialogue[] }>
     ]
   },
   'default': {
-    video: '/intro_cutscene.mp4',
+    image: '/images/cutscenes/default_intro.png',
     dialogues: [
       { speaker: 'Người Dẫn Truyện', text: "Vương quốc Elida từ lâu đã chìm trong biển máu..." },
       { speaker: 'Người Dẫn Truyện', text: "Bên dưới đống tàn tích, Hầm ngục thối rữa không ngừng nuốt chửng những linh hồn xấu số." },
@@ -110,22 +110,26 @@ export const StoryCutscene: React.FC<StoryCutsceneProps> = ({ type }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [displayedText, setDisplayedText] = useState('');
   const [isTyping, setIsTyping] = useState(true);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   const playerClassId = useEntityStore.getState().player?.classId || 'default';
   const introData = CLASS_INTRO_DATA[playerClassId] || CLASS_INTRO_DATA['default'];
   
   const dialogues = type === 'intro' ? introData.dialogues : BOSS_DIALOGUES;
-  const initialVideo = type === 'intro' ? introData.video : '/boss_cutscene.mp4';
-  const [currentVideoSrc, setCurrentVideoSrc] = useState(initialVideo);
+  const initialMedia = type === 'intro' ? introData.image : '/images/cutscenes/boss_cutscene.png';
+  const [currentMediaSrc, setCurrentMediaSrc] = useState(initialMedia);
+  const [prevSlide, setPrevSlide] = useState(currentSlide);
+  
+  if (prevSlide !== currentSlide) {
+    setPrevSlide(currentSlide);
+    setDisplayedText('');
+    setIsTyping(true);
+  }
 
   // Typewriter effect
   useEffect(() => {
     if (currentSlide >= dialogues.length) return;
 
     let charIndex = 0;
-    setDisplayedText('');
-    setIsTyping(true);
     
     // Nếu là intro, dừng player lại
     if (type === 'intro') {
@@ -181,21 +185,35 @@ export const StoryCutscene: React.FC<StoryCutsceneProps> = ({ type }) => {
       onClick={handleNext}
     >
       {/* Background Media */}
-      <div className="absolute inset-0 z-0">
-        <video 
-          ref={videoRef}
-          src={currentVideoSrc}
-          autoPlay 
-          loop 
-          muted 
-          className="w-full h-full object-cover opacity-60"
+      <div className="absolute inset-0 z-0 bg-black">
+        <img 
+          src={currentMediaSrc}
+          alt="Cinematic Background"
+          className="w-full h-full object-cover opacity-60 animate-ken-burns"
           onError={() => {
-            console.error(`Lỗi: Không load được video ${currentVideoSrc}! Đang chuyển sang video mặc định...`);
-            if (currentVideoSrc !== '/intro_cutscene.mp4') {
-              setCurrentVideoSrc('/intro_cutscene.mp4');
+            console.error(`Lỗi: Không load được ảnh ${currentMediaSrc}! Đang chuyển sang ảnh mặc định...`);
+            if (currentMediaSrc !== '/images/cutscenes/default_intro.png') {
+              setCurrentMediaSrc('/images/cutscenes/default_intro.png');
             }
           }}
         />
+        
+        {/* Lớp hạt tàn tro bay (Particles) */}
+        {Array.from({ length: 30 }).map((_, i) => (
+          <div 
+            key={i} 
+            className="absolute bg-[#fbbf24] rounded-full pointer-events-none"
+            style={{
+              width: `${Math.random() * 3 + 1}px`,
+              height: `${Math.random() * 3 + 1}px`,
+              left: `${Math.random() * 100}%`,
+              bottom: `-10px`,
+              opacity: 0,
+              boxShadow: '0 0 4px #fbbf24',
+              animation: `float-particles ${Math.random() * 5 + 5}s linear ${Math.random() * 5}s infinite`
+            }}
+          />
+        ))}
       </div>
 
       {/* Cinematic Letterbox (Black Bars) */}

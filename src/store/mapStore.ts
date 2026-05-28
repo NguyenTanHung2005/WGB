@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Room, RoomGates, RoomType, RoomState, BloodDecal, Pillar } from '../types/interfaces';
+import { useGameStore } from './gameStore';
 
 interface MapState {
   rooms: Room[];
@@ -13,9 +14,9 @@ interface MapState {
   addBloodDecal: (roomId: string, decal: BloodDecal) => void;
 }
 
-// Chiều rộng và chiều cao phòng cố định
-export const ROOM_WIDTH = 2000;
-export const ROOM_HEIGHT = 1500;
+// Chiều rộng và chiều cao phòng cố định (Mở rộng cho Boss khổng lồ)
+export const ROOM_WIDTH = 3000;
+export const ROOM_HEIGHT = 2500;
 export const WALL_THICKNESS = 40;
 export const GATE_WIDTH = 200;
 
@@ -134,8 +135,11 @@ export const useMapStore = create<MapState>((set) => ({
         ];
       }
 
-      const biomes: import('../types/interfaces').Biome[] = ['dungeon', 'blood', 'abyss', 'moss', 'hell'];
-      const randomBiome = biomes[Math.floor(Math.random() * biomes.length)];
+      const currentFloor = useGameStore.getState().currentFloor;
+      const biomes: import('../types/interfaces').Biome[] = ['dungeon', 'volcano', 'ice', 'moss', 'blood'];
+      // Tính biome index dựa theo tầng hiện tại (tối đa tầng 5 là blood)
+      const biomeIndex = Math.min(Math.max(currentFloor - 1, 0), 4);
+      const floorBiome = biomes[biomeIndex];
 
       newRooms.push({
         id: id,
@@ -150,7 +154,7 @@ export const useMapStore = create<MapState>((set) => ({
         waveCount: 0,
         maxWaves: rType === 'combat' ? (2 + Math.floor(Math.random() * 4)) : (rType === 'boss' ? 1 : 0),
         pillars: roomPillars,
-        biome: randomBiome
+        biome: floorBiome
       });
     });
 

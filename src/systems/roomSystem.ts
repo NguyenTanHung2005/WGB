@@ -1,7 +1,13 @@
 import { useEntityStore } from '../store/entityStore';
 import { useMapStore, ROOM_WIDTH, ROOM_HEIGHT, WALL_THICKNESS } from '../store/mapStore';
 import { useGameStore } from '../store/gameStore';
-import { ENEMY_TEMPLATES, BOSS_TEMPLATE, BOSS_NAMES } from '../data/enemies';
+import { ENEMY_TEMPLATES_BY_BIOME, BOSS_TEMPLATE_BY_BIOME } from '../data/enemies';
+import { BossKeSaNga } from '../bosses/KeSaNga/BossKeSaNga';
+import { generateKeSaNgaSpriteSheet } from '../bosses/KeSaNga/PixelDesign';
+import { BossGauSamSet } from '../bosses/GauSamSet/BossGauSamSet';
+import { generateGauSamSetSpriteSheet } from '../bosses/GauSamSet/PixelDesign';
+import { Boss } from '../entities/Boss';
+import { generateBossSpriteSheet } from '../graphics/PixelBossDesign';
 
 let isWaitingForWave = false;
 
@@ -115,12 +121,14 @@ export function runRoomSystem(_delta: number) {
     
     // Nếu đang trong trạng thái khóa chiến đấu, đã bắt đầu xuất hiện wave đầu tiên
     else if (currentRoom.state === 'combat_lock' && currentRoom.waveCount > 0 && !isWaitingForWave) {
+      const { activeBossInstance, setActiveBossInstance } = useEntityStore.getState();
       const allEnemiesDead = enemies.filter(e => e.hp > 0).length === 0;
-      const bossDead = currentRoom.type === 'boss' && enemies.some(e => e.type === 'boss' && e.hp <= 0 && e.hp > -9999);
+      const bossDead = currentRoom.type === 'boss' && activeBossInstance && activeBossInstance.hp <= 0 && activeBossInstance.hp > -9999;
 
       if (allEnemiesDead || bossDead) {
         if (bossDead) {
           // BOSS CHẾT -> Slow motion toàn cục và chờ 5 giây trước khi Ending
+          useEntityStore.getState().setCameraShake(40); // Rung lắc cực mạnh khi Boss chết
           useGameStore.getState().triggerHitStop(500); // Khựng màn hình
           useGameStore.getState().setAnnouncement('BOSS DEFEATED', 'The Nightmare is Over', 5000);
           
@@ -128,14 +136,12 @@ export function runRoomSystem(_delta: number) {
             setRoomState(currentRoom.id, 'cleared');
             addScore(1000);
             useGameStore.getState().setPhase('cutscene_ending');
+            setActiveBossInstance(null);
           }, 5000);
           
-          // Tránh trigger lại nhiều lần bằng cách xóa boss khỏi enemies hoặc đánh dấu nó
-          const boss = enemies.find(e => e.type === 'boss');
-          if (boss) {
-            useEntityStore.getState().updateEnemy(boss.id, { hp: -9999 }); // Đánh dấu đã trigger timeout
-          }
-        } else {
+          // Tránh trigger lại nhiều lần
+          activeBossInstance.hp = -9999;
+        } else if (currentRoom.type !== 'boss') {
           const nextWave = currentRoom.waveCount + 1;
           
           if (nextWave <= currentRoom.maxWaves) {
@@ -197,43 +203,35 @@ export function runRoomSystem(_delta: number) {
   // --- HÀM SPAWN WAVE QUÁI VẬT ---
   function spawnWave(type: 'combat' | 'boss', _waveNum: number) {
     if (type === 'boss') {
-      // Spawn Boss
-      const randomBossName = BOSS_NAMES[Math.floor(Math.random() * BOSS_NAMES.length)];
-      addEnemy({
-        id: BOSS_TEMPLATE.id,
-        name: randomBossName,
-        type: 'boss',
-        x: ROOM_WIDTH / 2,
-        y: ROOM_HEIGHT / 2 - 50,
-        radius: BOSS_TEMPLATE.radius,
-        vx: 0,
-        vy: 0,
-        hp: BOSS_TEMPLATE.maxHp,
-        maxHp: BOSS_TEMPLATE.maxHp,
-        speed: BOSS_TEMPLATE.speed,
-        angle: 0,
-        aiPattern: BOSS_TEMPLATE.aiPattern,
-        templateId: BOSS_TEMPLATE.id,
-        damage: BOSS_TEMPLATE.damage,
-        color: BOSS_TEMPLATE.color,
-        statusEffects: []
-      });
+      const spawnX = ROOM_WIDTH / 2;
+      const spawnY = ROOM_HEIGHT / 2 - 200;
+      const { setActiveBossInstance, setCameraShake } = useEntityStore.getState();
+      let newBoss = null;
+      if (currentRoom!.biome === 'dungeon') {
+        newBoss = new BossKeSaNga(spawnX, spawnY, generateKeSaNgaSpriteSheet());
+      } else if (currentRoom!.biome === 'volcano') {
+        newBoss = new BossGauSamSet(spawnX, spawnY, generateGauSamSetSpriteSheet());
+      } else {
+        newBoss = new Boss(spawnX, spawnY, generateBossSpriteSheet());
+      }
+      setActiveBossInstance(newBoss);
+      
+      // EPIC BOSS ENTRANCE UX
+      setCameraShake(25);
+      useGameStore.getState().setAnnouncement(newBoss.name || 'QUÁI THAI KHỔNG LỒ', 'Đã Thức Tỉnh', 4000);
       return;
     }
 
     // Tính toán Room Level (Độ sâu của phòng)
-    // Giả sử phòng Start ở (1,1) hoặc lấy khoảng cách tuyệt đối. Tạm thời lấy gridX + gridY làm level.
     const roomLevel = currentRoom ? currentRoom.gridX + currentRoom.gridY : 0;
     const levelMultiplier = 1 + (roomLevel * 0.25); // Tăng 25% máu/sát thương mỗi ô xa Start
 
-    // Giới hạn số lượng quái: 2 - 10 con mỗi đợt
-    const count = 2 + Math.floor(Math.random() * 9);
+    const biomeTemplates = ENEMY_TEMPLATES_BY_BIOME[currentRoom!.biome || 'dungeon'] || ENEMY_TEMPLATES_BY_BIOME['dungeon'];
+    const enemiesToSpawn = 2 + Math.floor(Math.random() * 9);
     
-    for (let i = 0; i < count; i++) {
-      // Chọn ngẫu nhiên quái từ danh sách mẫu
-      const template = ENEMY_TEMPLATES[Math.floor(Math.random() * ENEMY_TEMPLATES.length)];
+    for (let i = 0; i < enemiesToSpawn; i++) {
+      const template = biomeTemplates[Math.floor(Math.random() * biomeTemplates.length)];
       
-      // Chọn vị trí xuất hiện cách xa Player tối thiểu 200px
       let spawnX = 0;
       let spawnY = 0;
       let ok = false;

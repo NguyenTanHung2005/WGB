@@ -3,10 +3,10 @@ import { useGameStore } from '../store/gameStore';
 import { useEntityStore } from '../store/entityStore';
 
 const PERKS = [
-  { id: 'hp_boost', name: 'Vitality', desc: 'Tăng 2 Máu tối đa và hồi đầy Máu.', color: '#22c55e' },
-  { id: 'dmg_boost', name: 'Bloodlust', desc: 'Tăng vĩnh viễn 2 Sát thương cho tất cả vũ khí.', color: '#ef4444' },
-  { id: 'speed_boost', name: 'Swiftness', desc: 'Tăng 20% Tốc độ di chuyển.', color: '#3b82f6' },
-  { id: 'shield_boost', name: 'Iron Will', desc: 'Nhận 2 Giáp ảo.', color: '#a8a29e' }
+  { id: 'hp_boost', name: 'VITALITY', desc: 'Blood flows anew. Max HP +2 and heal to full.', color: '#22c55e', symbol: '🩸' },
+  { id: 'dmg_boost', name: 'BLOODLUST', desc: 'The hunger grows. Permanent +2 Damage to all weapons.', color: '#ef4444', symbol: '⚔️' },
+  { id: 'speed_boost', name: 'SWIFTNESS', desc: 'Lighter than shadows. +20% Movement Speed.', color: '#3b82f6', symbol: '💨' },
+  { id: 'shield_boost', name: 'IRON WILL', desc: 'The mind hardens. Gain 2 temporary Shield.', color: '#a8a29e', symbol: '🛡️' }
 ];
 
 export const LevelUpScreen: React.FC = () => {
@@ -15,48 +15,76 @@ export const LevelUpScreen: React.FC = () => {
 
   const handleSelectPerk = (perkId: string) => {
     if (!player) return;
-
-    if (perkId === 'hp_boost') {
-      updatePlayer({ maxHp: player.maxHp + 2, hp: player.maxHp + 2 });
-    } else if (perkId === 'dmg_boost') {
-      if (player.weapons) {
-        const upgradedWeapons = player.weapons.map(w => ({ ...w, damage: w.damage + 2 }));
-        updatePlayer({ weapons: upgradedWeapons });
-      }
-    } else if (perkId === 'speed_boost') {
-      updatePlayer({ speed: player.speed * 1.2 });
-    } else if (perkId === 'shield_boost') {
-      updatePlayer({ shield: (player.shield || 0) + 2 });
+    if (perkId === 'hp_boost') updatePlayer({ maxHp: player.maxHp + 2, hp: player.maxHp + 2 });
+    else if (perkId === 'dmg_boost') {
+      if (player.weapons) updatePlayer({ weapons: player.weapons.map(w => ({ ...w, damage: w.damage + 2 })) });
     }
-
+    else if (perkId === 'speed_boost') updatePlayer({ speed: player.speed * 1.2 });
+    else if (perkId === 'shield_boost') updatePlayer({ shield: (player.shield || 0) + 2 });
+    
     setPhase('playing');
   };
 
-  // Lấy 3 lựa chọn ngẫu nhiên
-  const shuffled = [...PERKS].sort(() => 0.5 - Math.random());
-  const options = shuffled.slice(0, 3);
+  const [options, setOptions] = React.useState<typeof PERKS>([]);
+  React.useEffect(() => {
+    setOptions([...PERKS].sort(() => 0.5 - Math.random()).slice(0, 3));
+  }, []);
 
   return (
-    <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 animate-[fadeIn_0.5s_ease-out]">
-      <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-amber-200 to-amber-600 mb-2 tracking-widest drop-shadow-[0_0_20px_rgba(251,191,36,0.5)]">
-        LEVEL UP!
-      </h1>
-      <p className="text-amber-100/70 font-mono text-xl mb-12">Level {player?.level || 1}</p>
+    <div className="absolute inset-0 flex flex-col items-center justify-center z-50 overflow-hidden bg-black/90 backdrop-blur-md animate-[fadeIn_0.5s_ease-out]">
+      {/* Background magical runes */}
+      <div className="absolute inset-0 pointer-events-none opacity-10 flex items-center justify-center" style={{ animation: 'spin 60s linear infinite' }}>
+        <div className="w-[800px] h-[800px] rounded-full border-4 border-[#fbbf24] border-dashed" />
+      </div>
 
-      <div className="flex gap-6 max-w-4xl w-full px-8">
+      <h1 className="text-7xl font-serif text-transparent bg-clip-text bg-gradient-to-b from-[#fde68a] to-[#d97706] mb-2 tracking-[0.2em] drop-shadow-[0_0_25px_rgba(251,191,36,0.5)] z-10">
+        LEVEL UP
+      </h1>
+      <p className="text-[#fef3c7] font-serif text-xl mb-12 tracking-widest z-10 opacity-70">
+        -- Level {player?.level || 1} --
+      </p>
+
+      <div className="flex gap-8 max-w-5xl w-full px-8 justify-center z-10 perspective-1000">
         {options.map((perk, i) => (
           <button
             key={perk.id}
             onClick={() => handleSelectPerk(perk.id)}
-            className="flex-1 bg-[#1c1917] hover:bg-[#292524] border-2 border-[#292524] hover:border-amber-500 rounded-lg p-6 text-left transition-all duration-300 transform hover:-translate-y-2 hover:shadow-[0_10px_30px_rgba(245,158,11,0.2)] group animate-[slideUp_0.5s_ease-out]"
-            style={{ animationDelay: `${i * 100}ms` }}
+            className="group relative flex-1 max-w-[280px] h-[400px] bg-[#0c0a09] border border-[#292524] rounded-sm p-1 text-center transition-all duration-500 hover:-translate-y-6 hover:scale-105 hover:shadow-[0_0_40px_rgba(251,191,36,0.3)] animate-[slideUp_0.6s_ease-out_forwards] opacity-0"
+            style={{ animationDelay: `${i * 150}ms` }}
           >
-            <div className="text-3xl mb-4 font-bold tracking-wider" style={{ color: perk.color }}>
-              {perk.name}
+            {/* Inner Gold Border (Tarot Style) */}
+            <div className="w-full h-full border-2 border-[#78350f] group-hover:border-[#fbbf24] flex flex-col items-center p-6 relative overflow-hidden transition-colors duration-500">
+              
+              {/* Magic glow effect inside card */}
+              <div 
+                className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-700" 
+                style={{ background: `radial-gradient(circle at center, ${perk.color} 0%, transparent 70%)` }} 
+              />
+              
+              {/* Symbol */}
+              <div 
+                className="text-6xl mb-8 mt-4 drop-shadow-lg group-hover:scale-125 transition-transform duration-500" 
+                style={{ filter: `drop-shadow(0 0 10px ${perk.color})` }}
+              >
+                {perk.symbol}
+              </div>
+              
+              {/* Title */}
+              <div 
+                className="text-2xl mb-6 font-serif tracking-widest font-bold z-10" 
+                style={{ color: perk.color, textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}
+              >
+                {perk.name}
+              </div>
+              
+              {/* Separator */}
+              <div className="w-16 h-[1px] bg-gray-700 group-hover:bg-[#fbbf24] mb-6 transition-colors duration-500" />
+              
+              {/* Description */}
+              <p className="text-[#a3a3a3] font-serif leading-relaxed text-sm group-hover:text-white transition-colors z-10 px-2">
+                {perk.desc}
+              </p>
             </div>
-            <p className="text-gray-400 font-serif leading-relaxed text-sm group-hover:text-gray-300 transition-colors">
-              {perk.desc}
-            </p>
           </button>
         ))}
       </div>

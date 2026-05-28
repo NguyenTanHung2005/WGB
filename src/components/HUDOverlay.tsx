@@ -6,7 +6,7 @@ import { Shield, Zap, Coins, Menu, Swords, Wind, Target } from 'lucide-react';
 
 export const HUDOverlay: React.FC = () => {
   const { player, enemies } = useEntityStore();
-  const { gold, setPhase, announcement } = useGameStore();
+  const { gold, setPhase, announcement, currentFloor } = useGameStore();
   const { rooms, currentRoomId } = useMapStore();
   
   // Update time for skill cooldown smoothly
@@ -44,48 +44,55 @@ export const HUDOverlay: React.FC = () => {
       <div className="flex flex-col gap-2 drop-shadow-2xl">
         <div className="flex gap-4 items-end">
         {/* BLOOD ORB */}
-        <div className="relative w-28 h-28 rounded-full border-4 border-[#1c1917] bg-[#0c0a09] overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.8),inset_0_0_15px_rgba(0,0,0,0.9)] flex items-end">
+        <div className="relative w-28 h-28 rounded-full border-[3px] border-[#3f3f46] bg-[#09090b] overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.9),0_0_0_5px_rgba(0,0,0,0.8),inset_0_0_20px_rgba(0,0,0,1)] flex items-end">
+          {/* Glass Specular Reflection - Inner Top */}
+          <div className="absolute top-1 left-2 w-20 h-10 bg-gradient-to-b from-white/30 to-transparent rounded-[100%] blur-[1px] pointer-events-none z-20" style={{ transform: 'rotate(-20deg)' }} />
+          
           {/* Lớp nền gai góc */}
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMWMxOTE3Ij48L3JlY3Q+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMwMDAiIG9wYWNpdHk9IjAuNSI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30" />
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMWMxOTE3Ij48L3JlY3Q+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMwMDAiIG9wYWNpdHk9IjAuNSI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-20" />
           
           {/* Máu lỏng */}
           <div 
-            className="w-full bg-gradient-to-t from-[#450a0a] via-[#dc2626] to-[#ef4444] transition-all duration-500 ease-out relative shadow-[0_-5px_15px_rgba(220,38,38,0.5)]"
+            className="w-full bg-gradient-to-t from-[#450a0a] via-[#dc2626] to-[#ff6b6b] transition-all duration-500 ease-out relative shadow-[0_-5px_25px_rgba(220,38,38,0.7)] z-10"
             style={{ height: `${hpPercent}%` }}
           >
-            {/* Lớp sóng trên bề mặt */}
-            <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-t from-transparent to-white opacity-20 blur-[2px] animate-pulse" />
+            {/* Sóng bọt trên bề mặt */}
+            <div className="absolute top-0 left-0 right-0 h-3 bg-white/40 blur-[1px] animate-[pulse_2s_infinite]" />
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/80 to-transparent" />
           </div>
 
-          {/* Ánh sáng phản chiếu kính */}
-          <div className="absolute inset-0 rounded-full border border-black/50 pointer-events-none" />
-          <div className="absolute top-1 left-2 w-10 h-10 bg-gradient-to-br from-white/20 to-transparent rounded-full blur-[2px] pointer-events-none" />
+          {/* Vành kim loại xước bọc viền (Rim light) */}
+          <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none z-30" />
+          <div className="absolute bottom-1 right-2 w-10 h-6 bg-gradient-to-tl from-white/10 to-transparent rounded-[100%] blur-[2px] pointer-events-none z-20" />
 
           {/* Text HP */}
-          <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none drop-shadow-[0_2px_2px_rgba(0,0,0,1)] mix-blend-overlay">
-             <span className="text-white/80 text-[10px] font-bold">HP</span>
-             <span className="text-white text-base font-bold font-mono">{Math.floor(player.hp)}</span>
+          <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,1)] z-40 mix-blend-plus-lighter">
+             <span className="text-red-200/90 text-[10px] font-black tracking-widest uppercase">HP</span>
+             <span className="text-white text-lg font-black font-mono tracking-tight">{Math.floor(player.hp)}</span>
           </div>
         </div>
 
         {/* SANITY ORB (Chỉ hiện nếu có maxSanity) */}
         {player.maxSanity && (
-          <div className="relative w-24 h-24 rounded-full border-4 border-[#1c1917] bg-[#0c0a09] overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.8),inset_0_0_15px_rgba(0,0,0,0.9)] flex items-end">
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMWMxOTE3Ij48L3JlY3Q+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMwMDAiIG9wYWNpdHk9IjAuNSI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30" />
+          <div className="relative w-24 h-24 rounded-full border-[3px] border-[#3f3f46] bg-[#09090b] overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.9),0_0_0_5px_rgba(0,0,0,0.8),inset_0_0_20px_rgba(0,0,0,1)] flex items-end">
+            <div className="absolute top-1 left-2 w-16 h-8 bg-gradient-to-b from-white/30 to-transparent rounded-[100%] blur-[1px] pointer-events-none z-20" style={{ transform: 'rotate(-20deg)' }} />
+            
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMWMxOTE3Ij48L3JlY3Q+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMwMDAiIG9wYWNpdHk9IjAuNSI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-20" />
             
             <div 
-              className="w-full bg-gradient-to-t from-[#2e1065] via-[#7c3aed] to-[#c084fc] transition-all duration-500 ease-out relative shadow-[0_-5px_15px_rgba(124,58,237,0.5)]"
+              className="w-full bg-gradient-to-t from-[#2e1065] via-[#7c3aed] to-[#d8b4fe] transition-all duration-500 ease-out relative shadow-[0_-5px_25px_rgba(124,58,237,0.7)] z-10"
               style={{ height: `${sanityPercent}%` }}
             >
-              <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-t from-transparent to-white opacity-20 blur-[2px] animate-pulse" />
+              <div className="absolute top-0 left-0 right-0 h-3 bg-white/40 blur-[1px] animate-[pulse_2s_infinite]" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/80 to-transparent" />
             </div>
 
-            <div className="absolute inset-0 rounded-full border border-black/50 pointer-events-none" />
-            <div className="absolute top-1 left-2 w-8 h-8 bg-gradient-to-br from-white/20 to-transparent rounded-full blur-[2px] pointer-events-none" />
+            <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none z-30" />
+            <div className="absolute bottom-1 right-2 w-8 h-4 bg-gradient-to-tl from-white/10 to-transparent rounded-[100%] blur-[2px] pointer-events-none z-20" />
 
-            <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none drop-shadow-[0_2px_2px_rgba(0,0,0,1)] mix-blend-overlay">
-               <span className="text-white/80 text-[9px] font-bold">MP</span>
-               <span className="text-white text-sm font-bold font-mono">{Math.floor(player.sanity || 0)}</span>
+            <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,1)] z-40 mix-blend-plus-lighter">
+               <span className="text-purple-200/90 text-[10px] font-black tracking-widest uppercase">MP</span>
+               <span className="text-white text-base font-black font-mono tracking-tight">{Math.floor(player.sanity || 0)}</span>
             </div>
           </div>
         )}
@@ -251,10 +258,13 @@ export const HUDOverlay: React.FC = () => {
             )}
 
             {/* Resources: Gold & Score */}
-            <div className="hud-resources">
-              <div className="hud-gold">
-                <Coins size={16} className="fill-amber-400" />
-                {gold}
+            <div className="hud-resources flex flex-col gap-2 pointer-events-auto">
+              <div className="hud-gold flex items-center gap-2 bg-[#0c0a09] border-2 border-[#fbbf24]/30 px-3 py-1 rounded drop-shadow-md">
+                <Coins size={16} className="text-[#fbbf24] drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+                <span className="text-[#fef08a] font-serif font-bold text-sm tracking-wider">{gold}</span>
+              </div>
+              <div className="hud-floor flex items-center gap-2 bg-[#0c0a09] border-2 border-[#a855f7]/30 px-3 py-1 rounded drop-shadow-md">
+                <span className="text-[#d8b4fe] font-serif font-bold text-sm tracking-wider">FLOOR {currentFloor}</span>
               </div>
             </div>
           </div>
@@ -279,6 +289,7 @@ export const HUDOverlay: React.FC = () => {
              <span className="relative text-white font-bold text-xs drop-shadow-md">HP</span>
              <span className="absolute top-0 right-1 text-[9px] text-gray-400">1</span>
            </div>
+
            <div className="w-12 h-12 bg-[#1c1917] border-2 border-[#1e1b4b] rounded flex items-center justify-center relative overflow-hidden shadow-[inset_0_0_10px_#000]">
              <div className="absolute bottom-0 w-full bg-blue-600 opacity-50" style={{ height: '40%' }} />
              <span className="relative text-white font-bold text-xs drop-shadow-md">MP</span>
@@ -287,28 +298,39 @@ export const HUDOverlay: React.FC = () => {
         </div>
 
         {/* Main Skill */}
-        <div className="relative w-20 h-20 bg-[#0c0a09] border-4 border-[#3f3f46] rounded-lg flex items-center justify-center overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.8)] mx-2">
-           {/* Nền kim loại xước */}
+        <div className="relative w-20 h-20 bg-[#0c0a09] border-[3px] border-[#52525b] rounded-xl flex items-center justify-center overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.9),inset_0_0_15px_rgba(0,0,0,0.9)] mx-2">
+           {/* Nền kim loại xước nhám */}
            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMWMxOTE3Ij48L3JlY3Q+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMwMDAiIG9wYWNpdHk9IjAuNSI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-50" />
+           <div className="absolute inset-0 bg-gradient-to-br from-transparent to-black/60 pointer-events-none" />
            
            {!isSkillReady && (
              <div 
-               className="absolute bottom-0 w-full transition-all duration-100 ease-linear"
+               className="absolute bottom-0 w-full transition-all duration-100 ease-linear backdrop-blur-sm"
                style={{ 
                  height: `${100 - cooldownPercent}%`,
-                 backgroundColor: player.classId === 'knight' ? 'rgba(251, 191, 36, 0.2)' : 
-                                  player.classId === 'rogue' ? 'rgba(56, 189, 248, 0.2)' : 
-                                  'rgba(167, 139, 250, 0.2)'
+                 backgroundColor: player.classId === 'knight' ? 'rgba(251, 191, 36, 0.15)' : 
+                                  player.classId === 'rogue' ? 'rgba(56, 189, 248, 0.15)' : 
+                                  'rgba(167, 139, 250, 0.15)',
+                 boxShadow: `0 -2px 10px ${
+                   player.classId === 'knight' ? 'rgba(251, 191, 36, 0.5)' : 
+                   player.classId === 'rogue' ? 'rgba(56, 189, 248, 0.5)' : 
+                   'rgba(167, 139, 250, 0.5)'
+                 }`
                }}
-             />
+             >
+                <div className="w-full h-1 bg-white/40 absolute top-0" />
+             </div>
            )}
-           <div className="relative z-10">
-             {player.classId === 'knight' && <Shield size={40} className={`${isSkillReady ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 8px rgba(251,191,36,0.8))' } : {}} />}
-             {player.classId === 'rogue' && <Wind size={40} className={`${isSkillReady ? 'text-sky-400 fill-sky-400' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 8px rgba(56,189,248,0.8))' } : {}} />}
-             {player.classId === 'mage' && <Zap size={40} className={`${isSkillReady ? 'text-purple-400 fill-purple-400' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 8px rgba(167,139,250,0.8))' } : {}} />}
-             {(!player.classId || player.classId === 'archer') && <Target size={40} className={`${isSkillReady ? 'text-emerald-400' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {}} />}
+           <div className={`relative z-10 transition-transform duration-200 ${isSkillReady ? 'scale-110' : 'scale-90 opacity-50'}`}>
+             {player.classId === 'knight' && <Shield size={44} className={`${isSkillReady ? 'text-amber-400 fill-amber-500' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 15px rgba(251,191,36,0.9))' } : {}} />}
+             {player.classId === 'rogue' && <Wind size={44} className={`${isSkillReady ? 'text-sky-400 fill-sky-500' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 15px rgba(56,189,248,0.9))' } : {}} />}
+             {player.classId === 'mage' && <Zap size={44} className={`${isSkillReady ? 'text-purple-400 fill-purple-500' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 15px rgba(167,139,250,0.9))' } : {}} />}
+             {(!player.classId || player.classId === 'archer') && <Target size={44} className={`${isSkillReady ? 'text-emerald-400' : 'text-slate-600'}`} style={isSkillReady ? { filter: 'drop-shadow(0 0 15px rgba(52,211,153,0.9))' } : {}} />}
            </div>
-           <div className="absolute bottom-1 right-2 text-white/50 text-xs font-bold">E</div>
+           {/* Phím bấm E */}
+           <div className="absolute bottom-1 right-2 text-white font-black text-xs drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">E</div>
+           {/* Viền sáng nếu ready */}
+           {isSkillReady && <div className="absolute inset-0 border-2 border-white/20 rounded-xl pointer-events-none animate-pulse" />}
         </div>
 
         {/* Weapons */}
@@ -334,26 +356,92 @@ export const HUDOverlay: React.FC = () => {
         </div>
       </div>
 
-      {/* BOSS HEALTH BAR */}
+      {/* EPIC BOSS HEALTH BAR & EFFECTS (DARK SOULS / ELDEN RING STYLE) */}
       {(() => {
-        const boss = enemies.find(e => e.type === 'boss');
-        if (!boss) return null;
+        const { activeBossInstance } = useEntityStore.getState();
+        if (!activeBossInstance || activeBossInstance.state === 'death' || activeBossInstance.hp <= 0) return null;
         
-        const hpPercent = Math.max(0, (boss.hp / boss.maxHp) * 100);
-        const isEnraged = boss.hp < boss.maxHp * 0.3; // Dưới 30% máu
+        const hpPercent = Math.max(0, (activeBossInstance.hp / activeBossInstance.maxHP) * 100);
+        const trailingPercent = activeBossInstance.trailingHpPercent ?? hpPercent;
+        const isEnraged = activeBossInstance.phase >= 2 || hpPercent < 30;
+        const bossPhase = activeBossInstance.phase || 1;
+        const maxPhase = activeBossInstance.maxPhase || 3;
         
         return (
-          <div className="absolute top-8 left-1/2 -translate-x-1/2 w-2/3 max-w-2xl flex flex-col items-center">
-            <h2 className={`text-2xl font-black tracking-widest mb-2 drop-shadow-[0_0_10px_rgba(255,0,0,0.8)] ${isEnraged ? 'text-red-500 animate-pulse' : 'text-red-300'}`}>
-              {boss.name || 'QUÁI THAI KHỔNG LỒ'}
-            </h2>
-            <div className="w-full h-4 bg-black/80 border-2 border-red-900 rounded-full overflow-hidden shadow-[0_0_20px_rgba(220,38,38,0.3)]">
-              <div 
-                className={`h-full transition-all duration-300 ${isEnraged ? 'bg-gradient-to-r from-red-600 to-red-400' : 'bg-gradient-to-r from-red-900 to-red-600'}`}
-                style={{ width: `${hpPercent}%` }}
-              />
+          <>
+            {/* Cinematic Vignette — viền tối / đỏ tùy trạng thái boss */}
+            <div 
+              className={`fixed inset-0 pointer-events-none z-0 transition-opacity duration-1000 ${isEnraged ? 'bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(127,29,29,0.45)_100%)]' : 'bg-[radial-gradient(ellipse_at_center,transparent_50%,rgba(0,0,0,0.65)_100%)]'}`}
+              style={isEnraged ? { animation: 'pulse 2.5s ease-in-out infinite' } : {}}
+            />
+            
+            <div className="absolute bottom-[7vh] left-1/2 -translate-x-1/2 w-[82%] max-w-4xl flex flex-col items-center pointer-events-none z-50">
+              
+              {/* Tên Boss — Gothic Premium */}
+              <h2 
+                className={`text-lg md:text-xl font-black tracking-[0.6em] mb-1.5 uppercase transition-colors duration-500 ${isEnraged ? 'text-red-400' : 'text-stone-400'}`} 
+                style={{ 
+                  fontFamily: 'var(--font-heading, Georgia, serif)', 
+                  textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 0 20px rgba(0,0,0,0.8)' 
+                }}
+              >
+                {activeBossInstance.name || 'QUÁI THAI KHỔNG LỒ'}
+              </h2>
+
+              {/* Phase Indicator — 3 chấm tròn nhỏ */}
+              <div className="flex gap-2 mb-2">
+                {Array.from({ length: maxPhase }, (_, i) => (
+                  <div 
+                    key={`phase_${i}`}
+                    className={`w-2.5 h-2.5 rounded-full border transition-all duration-500 ${
+                      i < bossPhase 
+                        ? 'bg-amber-400 border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.8)]' 
+                        : 'bg-zinc-800 border-zinc-600'
+                    }`}
+                  />
+                ))}
+              </div>
+              
+              {/* Thanh máu Boss — Elden Ring style */}
+              <div className="w-full h-[10px] relative bg-black/90 border border-zinc-700/80 overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.9),0_0_15px_rgba(220,38,38,0.15)] rounded-[2px]">
+                
+                {/* Nền tối sần */}
+                <div className="absolute inset-0 bg-zinc-950 opacity-90 z-0" />
+                
+                {/* Trailing HP Bar — thanh vàng amber tụt chậm */}
+                <div 
+                  className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-amber-500/90 to-amber-400/70 z-[5]"
+                  style={{ width: `${trailingPercent}%`, transition: 'none' }}
+                />
+
+                {/* HP Bar chính — đỏ gradient */}
+                <div 
+                  className={`absolute left-0 top-0 bottom-0 z-10 ${
+                    isEnraged 
+                      ? 'bg-gradient-to-r from-red-700 via-red-500 to-orange-500' 
+                      : 'bg-gradient-to-r from-red-950 via-red-800 to-red-600'
+                  }`}
+                  style={{ width: `${hpPercent}%`, transition: 'width 80ms ease-out' }}
+                >
+                  {/* Specular highlight trên cùng */}
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-b from-white/25 to-transparent" />
+                  
+                  {/* Shimmer quét ngang */}
+                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_4s_infinite]" />
+                </div>
+
+                {/* Vạch chia phase (25% và 50%) */}
+                <div className="absolute top-0 bottom-0 left-1/4 w-[1px] bg-white/10 z-20" />
+                <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-white/10 z-20" />
+                <div className="absolute top-0 bottom-0 left-3/4 w-[1px] bg-white/10 z-20" />
+              </div>
+
+              {/* HP số — nhỏ, tinh tế */}
+              <div className="mt-1 text-[10px] font-mono tracking-wider text-zinc-500">
+                {Math.ceil(activeBossInstance.hp)} / {activeBossInstance.maxHP}
+              </div>
             </div>
-          </div>
+          </>
         );
       })()}
 

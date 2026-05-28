@@ -35,7 +35,7 @@ export interface CharacterClass {
 
 // --- ENTITY ---
 export type EntityType = 'player' | 'enemy' | 'boss' | 'ally';
-export type AIPattern = 'chase' | 'shoot' | 'charge' | 'summon' | 'follow' | 'ambush' | 'dash_attack' | 'teleport_attack';
+export type AIPattern = 'chase' | 'shoot' | 'charge' | 'summon' | 'follow' | 'ambush' | 'dash_attack' | 'teleport_attack' | 'dragon_boss' | 'frost_boss' | 'toxic_boss' | 'blood_boss';
 export type AnimationState = 'idle' | 'walk' | 'attack' | 'roll' | 'dead';
 
 export interface Entity {
@@ -71,15 +71,17 @@ export interface Entity {
   templateId?: string;    // Dùng cho enemy/ally để vẽ hình
   lastAIShootTime?: number; // Cho quái bắn xa
   lastSummonTime?: number; // Cho quái gọi đệ
-  dashState?: 'warning' | 'dashing' | 'cooldown' | 'chase'; // Cho AI dash_attack và teleport_attack
+  dashState?: 'warning' | 'dashing' | 'cooldown' | 'chase' | 'chasing' | 'fire_breath' | 'reposition' | 'dash_warning' | 'dash_bite' | 'homing_fire' | 'enraged_transition' | 'frost_spear' | 'blizzard' | 'teleport' | 'poison_pool' | 'summon_slime' | 'blood_laser' | 'lifesteal_dash';
   lastDashTime?: number; // Cảnh báo thời gian
   dashTargetX?: number;
   dashTargetY?: number;
+  isEnraged?: boolean; // Cho Boss Rồng
   isAmbushing?: boolean; // Cho AI ambush
   damage?: number;        // Chỉ enemy/boss/ally mới có, hoặc sát thương va chạm
   color?: string;         // Vẽ tạm hoặc màu quái
   expireTime?: number;    // timestamp ms khi entity này tự biến mất (vd: Sói tinh linh)
   relics?: string[];      // Mảng chứa ID của các Relic (Chỉ player)
+  attackCooldown?: number;// Cooldown tấn công của quái vật
   
   // Elite & Elemental
   isElite?: boolean;
@@ -123,7 +125,7 @@ export interface Projectile {
 // --- ROOM ---
 export type RoomType = 'start' | 'combat' | 'chest' | 'shop' | 'boss' | 'trap' | 'sacrifice';
 export type RoomState = 'unvisited' | 'active' | 'combat_lock' | 'cleared';
-export type Biome = 'dungeon' | 'blood' | 'abyss' | 'moss' | 'hell';
+export type Biome = 'dungeon' | 'volcano' | 'ice' | 'moss' | 'blood';
 
 export interface BloodDecal {
   x: number;
@@ -138,6 +140,15 @@ export interface Pillar {
   x: number;
   y: number;
   radius: number;
+}
+
+export interface BloodSplat {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  color: string;
+  shapeOffsets: { dx: number; dy: number; r: number }[];
 }
 
 export interface RoomGates {

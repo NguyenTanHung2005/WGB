@@ -54,7 +54,7 @@ export const PauseMenu: React.FC = () => {
           label = 'B'; 
           color = '#f43f5e'; 
           if (!isVisited) {
-            bgStyle.borderColor = '#f43f5e';
+            bgStyle = { ...bgStyle, borderColor: '#f43f5e' };
             extraClass = 'animate-pulse';
           }
         } else if (isVisited) {

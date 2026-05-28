@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { 
   Entity, Projectile, VFXParticle, DamageNumber, 
   Chest, Shrine, ShopItem, GoldPickup, HealthPickup, RelicPickup, ExpPickup,
-  DestructibleBarrel, ExplosiveBarrel, Portal, GroundWeapon, SpikeTrap, Anvil
+  DestructibleBarrel, ExplosiveBarrel, Portal, GroundWeapon, SpikeTrap, Anvil, BloodSplat
 } from '../types/interfaces';
 import { WEAPONS } from '../data/weapons';
 import { ROOM_WIDTH, ROOM_HEIGHT, useMapStore } from './mapStore';
@@ -14,6 +14,7 @@ interface EntityState {
   projectiles: Projectile[];
   particles: VFXParticle[];
   damageNumbers: DamageNumber[];
+  bloodSplats: BloodSplat[];
   chests: Chest[];
   shrines: Shrine[];
   shopItems: ShopItem[];
@@ -31,6 +32,7 @@ interface EntityState {
   cameraShake: number; // Cường độ rung camera hiện tại
   cameraShakeDx: number; // Hướng rung X
   cameraShakeDy: number; // Hướng rung Y
+  activeBossInstance: any | null; // Instance của Siêu Boss
 
   setPlayer: (player: Entity | null) => void;
   updatePlayer: (updater: Partial<Entity> | ((p: Entity) => Entity)) => void;
@@ -49,6 +51,8 @@ interface EntityState {
   setParticles: (p: VFXParticle[]) => void;
   addDamageNumber: (dn: DamageNumber) => void;
   setDamageNumbers: (dn: DamageNumber[]) => void;
+  addBloodSplat: (bs: BloodSplat) => void;
+  clearBloodSplats: () => void;
   
   addGoldPickup: (g: GoldPickup) => void;
   removeGoldPickup: (id: string) => void;
@@ -91,6 +95,7 @@ interface EntityState {
   
   clearRoomEntities: () => void;
   spawnRoomElements: (roomType: string) => void;
+  setActiveBossInstance: (boss: any | null) => void;
 }
 
 export const useEntityStore = create<EntityState>((set) => ({
@@ -100,6 +105,7 @@ export const useEntityStore = create<EntityState>((set) => ({
   projectiles: [],
   particles: [],
   damageNumbers: [],
+  bloodSplats: [],
   chests: [],
   shrines: [],
   shopItems: [],
@@ -117,6 +123,7 @@ export const useEntityStore = create<EntityState>((set) => ({
   cameraShake: 0,
   cameraShakeDx: 0,
   cameraShakeDy: 0,
+  activeBossInstance: null,
 
   setPlayer: (player) => set({ player }),
   
@@ -169,6 +176,13 @@ export const useEntityStore = create<EntityState>((set) => ({
   addDamageNumber: (dn) => set((state) => ({ damageNumbers: [...state.damageNumbers, dn] })),
   
   setDamageNumbers: (damageNumbers) => set({ damageNumbers }),
+  
+  addBloodSplat: (bs) => set((state) => {
+    const newSplats = [...state.bloodSplats, bs];
+    if (newSplats.length > 500) newSplats.shift(); // Giới hạn 500 vết máu mỗi phòng
+    return { bloodSplats: newSplats };
+  }),
+  clearBloodSplats: () => set({ bloodSplats: [] }),
 
   addGoldPickup: (g) => set((state) => ({ goldPickups: [...state.goldPickups, g] })),
   removeGoldPickup: (id) => set((state) => ({
@@ -240,6 +254,7 @@ export const useEntityStore = create<EntityState>((set) => ({
   })),
 
   setPortal: (portal) => set({ portal }),
+  setActiveBossInstance: (boss) => set({ activeBossInstance: boss }),
 
   setCameraShake: (cameraShake, dx, dy) => set(state => ({ 
     cameraShake, 
@@ -265,7 +280,8 @@ export const useEntityStore = create<EntityState>((set) => ({
     explosiveBarrels: [],
     groundWeapons: [],
     spikeTraps: [],
-    portal: null
+    portal: null,
+    activeBossInstance: null
   }),
 
   spawnRoomElements: (roomType) => {
@@ -445,8 +461,8 @@ export const useEntityStore = create<EntityState>((set) => ({
         
         let variant: 'spike' | 'poison' | 'lava' = 'spike';
         if (currentBiome === 'moss') variant = 'poison';
-        else if (currentBiome === 'hell' || currentBiome === 'blood') variant = 'lava';
-        else if (currentBiome === 'abyss') variant = Math.random() > 0.5 ? 'poison' : 'spike';
+        else if (currentBiome === 'volcano' || currentBiome === 'blood') variant = 'lava';
+        else if (currentBiome === 'ice') variant = Math.random() > 0.5 ? 'poison' : 'spike';
         spikeTraps.push({
           id: `spiketrap_${i}_${Date.now()}`,
           x: getRandomCoord(250, 650),

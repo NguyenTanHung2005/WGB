@@ -70,6 +70,26 @@ body {
   animation: fadeOut 1.5s ease forwards;
 }
 
+@keyframes ken-burns {
+  0% { transform: scale(1) translate(0, 0); }
+  100% { transform: scale(1.1) translate(-2%, -2%); }
+}
+
+.animate-ken-burns {
+  animation: ken-burns 30s linear infinite alternate;
+}
+
+@keyframes float-particles {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  50% { opacity: 0.5; }
+  100% { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
+}
+
+@keyframes slideUp {
+  0% { transform: translateY(50px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
 .glitch-text {
   animation: glitch 1.5s infinite;
   text-shadow: 2px 0 red, -2px 0 cyan;
@@ -773,4 +793,9 @@ body {
 .sanity-distortion {
   animation: sanity-wave 5s infinite alternate ease-in-out;
   pointer-events: none;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%) skewX(-15deg); }
 }

@@ -15,9 +15,9 @@ function createStoneFloorTexture(biome: Biome = 'dungeon'): HTMLCanvasElement {
   let strokeColor = '#0f172a';
 
   if (biome === 'blood') { bg = '#3f1118'; brickColors = ['#7f1d1d', '#3f1118']; strokeColor = '#29070c'; }
-  else if (biome === 'abyss') { bg = '#170c2a'; brickColors = ['#3b2361', '#170c2a']; strokeColor = '#0b051a'; }
+  else if (biome === 'ice') { bg = '#e0f2fe'; brickColors = ['#bae6fd', '#e0f2fe']; strokeColor = '#7dd3fc'; }
   else if (biome === 'moss') { bg = '#112718'; brickColors = ['#236132', '#112718']; strokeColor = '#06160a'; }
-  else if (biome === 'hell') { bg = '#2e0906'; brickColors = ['#991b1b', '#450a0a']; strokeColor = '#290606'; }
+  else if (biome === 'volcano') { bg = '#2e0906'; brickColors = ['#991b1b', '#450a0a']; strokeColor = '#290606'; }
 
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, 256, 256);
@@ -105,9 +105,9 @@ function createWallTexture(biome: Biome = 'dungeon'): HTMLCanvasElement {
   let mossColor = `rgba(21, 128, 61, ${Math.random() * 0.3})`;
 
   if (biome === 'blood') { bg = '#2c0a10'; brickColors = ['#4c0a15', '#1a0408']; mossColor = `rgba(153, 27, 27, ${Math.random() * 0.4})`; }
-  else if (biome === 'abyss') { bg = '#110526'; brickColors = ['#240a59', '#080214']; mossColor = `rgba(139, 92, 246, ${Math.random() * 0.2})`; }
+  else if (biome === 'ice') { bg = '#f0f9ff'; brickColors = ['#bae6fd', '#e0f2fe']; mossColor = `rgba(125, 211, 252, ${Math.random() * 0.2})`; }
   else if (biome === 'moss') { bg = '#0f2413'; brickColors = ['#164a21', '#071609']; mossColor = `rgba(34, 197, 94, ${Math.random() * 0.5})`; }
-  else if (biome === 'hell') { bg = '#2a0905'; brickColors = ['#5e1208', '#140301']; mossColor = `rgba(239, 68, 68, ${Math.random() * 0.3})`; }
+  else if (biome === 'volcano') { bg = '#2a0905'; brickColors = ['#5e1208', '#140301']; mossColor = `rgba(239, 68, 68, ${Math.random() * 0.3})`; }
 
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, 128, 128);

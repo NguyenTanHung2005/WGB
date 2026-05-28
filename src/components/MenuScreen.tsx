@@ -7,7 +7,7 @@ import { WEAPONS } from '../data/weapons';
 import { Shield, Flame, Heart } from 'lucide-react';
 
 export const MenuScreen: React.FC = () => {
-  const { setPhase, setSelectedClassId, setTransitioning } = useGameStore();
+  const { setPhase, setSelectedClassId, setTransitioning, currentFloor, setCurrentFloor } = useGameStore();
   const { setPlayer, clearRoomEntities, spawnRoomElements, addAlly } = useEntityStore();
   const { generateDungeon } = useMapStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -198,10 +198,43 @@ export const MenuScreen: React.FC = () => {
         >
           ELDRITCH SURVIVOR
         </div>
-        <div className="menu-subtitle italic text-[#52525b] mb-12">"Tất cả rồi sẽ mục nát..."<br/>Hãy chọn hình hài cuối cùng của bạn trước khi bước vào cõi chết.</div>
+        
+        <p className="text-xl mb-6 font-serif tracking-widest text-[#a3a3a3]" style={{ fontFamily: 'var(--font-serif)' }}>
+          CHOOSE YOUR CHARACTER
+        </p>
+
+        {/* --- FLOOR SELECTION --- */}
+        <div className="flex flex-col items-center mb-10 z-10">
+          <p className="text-sm mb-3 font-serif tracking-[0.2em] text-[#d8b4fe]" style={{ fontFamily: 'var(--font-serif)', textShadow: '0 0 10px rgba(168,85,247,0.4)' }}>
+            SELECT STARTING FLOOR
+          </p>
+          <div className="flex gap-4">
+            {[1, 2, 3, 4, 5].map((floor) => (
+              <button
+                key={floor}
+                onClick={() => setCurrentFloor(floor)}
+                className={`w-12 h-12 flex items-center justify-center rounded border-2 font-serif font-bold text-lg transition-all duration-300 ${
+                  currentFloor === floor 
+                    ? 'border-[#c084fc] bg-[#3b0764]/80 text-[#f3e8ff] shadow-[0_0_15px_rgba(168,85,247,0.6)]' 
+                    : 'border-[#4c1d95]/50 bg-[#1e1b4b]/50 text-[#a78bfa] hover:border-[#c084fc]/70'
+                }`}
+                style={{ fontFamily: 'var(--font-serif)' }}
+              >
+                {floor}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs mt-3 text-gray-500 italic">
+            {currentFloor === 1 && "Floor 1: Dungeon - Nơi ác mộng bắt đầu"}
+            {currentFloor === 2 && "Floor 2: Volcano - Hỏa ngục dung nham"}
+            {currentFloor === 3 && "Floor 3: Ice - Vực thẳm băng giá"}
+            {currentFloor === 4 && "Floor 4: Moss - Khu rừng rêu độc"}
+            {currentFloor === 5 && "Floor 5: Blood - Huyết hạm vĩnh hằng"}
+          </p>
+        </div>
 
       <div 
-        className="flex flex-wrap justify-center gap-8 px-8 max-w-[1200px] w-full"
+        className="flex flex-wrap justify-center gap-8 max-w-6xl w-full px-4 z-10" 
         style={{ transform: `translate(${mousePos.x * 10}px, ${mousePos.y * 10}px)`, transition: 'transform 0.1s ease-out' }}
       >
         {CHARACTER_CLASSES.map(cls => (
@@ -222,22 +255,23 @@ export const MenuScreen: React.FC = () => {
                     'bg-[#1c1917] border-[#292524] shadow-[0_0_20px_rgba(0,0,0,0.8)] group-hover:border-[#fbbf24]'}
                `}>
                   
-                  {cls.id === 'berserker' ? (
-                    // Highly Detailed Pixel Art Image
-                    <div className="absolute inset-0 w-full h-full bg-[#fcd34d]">
-                      <img src="/images/berserker_card.png" alt="Berserker Pixel Art" className="w-full h-full object-cover opacity-100 group-hover:scale-110 transition-transform duration-300" style={{ imageRendering: 'pixelated' }} />
-                    </div>
-                  ) : cls.id === 'bomb_devil' ? (
-                    // Highly Detailed Pixel Art Image
-                    <div className="absolute inset-0 w-full h-full bg-[#71717a]">
-                      <img src="/images/bomb_devil_card.png" alt="Bomb Devil Pixel Art" className="w-full h-full object-cover opacity-100 group-hover:scale-110 transition-transform duration-300" style={{ imageRendering: 'pixelated' }} />
-                    </div>
-                  ) : (
-                    <>
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
+                  {/* Highly Detailed Pixel Art Image (Tự động map theo ID) */}
+                  <div className="absolute inset-0 w-full h-full bg-[#1c1917]">
+                    <img 
+                      src={`/images/${cls.id}_card.png`} 
+                      alt={`${cls.name} Pixel Art`} 
+                      className="w-full h-full object-cover opacity-100 group-hover:scale-110 transition-transform duration-300" 
+                      style={{ imageRendering: 'pixelated' }}
+                      onError={(e) => {
+                        // Ẩn ảnh nếu chưa có file
+                        e.currentTarget.style.opacity = '0';
+                      }}
+                    />
+                    {/* Dấu chấm hỏi mờ hiện lên khi không có ảnh (làm nền) */}
+                    <div className="absolute inset-0 flex items-center justify-center -z-10">
                       <span className="text-[#52525b] group-hover:text-[#fbbf24] font-serif text-6xl opacity-30 transition-colors">?</span>
-                    </>
-                  )}
+                    </div>
+                  </div>
                </div>
             </div>
 
@@ -286,12 +320,36 @@ export const MenuScreen: React.FC = () => {
         ))}
       </div>
 
-      <div className="flex justify-center mt-12 z-10">
+      <div className="flex justify-center mt-12 z-10 gap-4 flex-wrap max-w-4xl">
         <button 
           className="px-8 py-3 bg-transparent text-[#7f1d1d] hover:text-[#ef4444] border-b border-[#7f1d1d] hover:border-[#ef4444] font-serif uppercase tracking-widest transition-all duration-300"
           onClick={() => setPhase('cutscene_ending')}
         >
           Watch Epilogue (Debug)
+        </button>
+        <button 
+          className="px-8 py-3 bg-transparent text-[#0ea5e9] hover:text-[#38bdf8] border-b border-[#0ea5e9] hover:border-[#38bdf8] font-serif uppercase tracking-widest transition-all duration-300"
+          onClick={() => setPhase('boss_preview')}
+        >
+          Dragon Boss Preview
+        </button>
+        <button 
+          className="px-8 py-3 bg-transparent text-[#84cc16] hover:text-[#bef264] border-b border-[#84cc16] hover:border-[#bef264] font-serif uppercase tracking-widest transition-all duration-300"
+          onClick={() => setPhase('kesanga_preview')}
+        >
+          Kẻ Sa Ngã Boss (2000px)
+        </button>
+        <button 
+          className="px-8 py-3 bg-transparent text-[#fde047] hover:text-[#fef08a] border-b border-[#fde047] hover:border-[#fef08a] font-serif uppercase tracking-widest transition-all duration-300"
+          onClick={() => setPhase('gausamset_preview')}
+        >
+          Gấu Sấm Sét (2000px)
+        </button>
+        <button 
+          className="px-8 py-3 bg-transparent text-[#fca5a5] hover:text-[#ef4444] border-b border-[#fca5a5] hover:border-[#ef4444] font-serif uppercase tracking-widest transition-all duration-300"
+          onClick={() => setPhase('reze_preview')}
+        >
+          Reze Quỷ Bom (Playable)
         </button>
       </div>
 

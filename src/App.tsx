@@ -7,8 +7,13 @@ import { GameOverScreen } from './components/GameOverScreen';
 import { HUDOverlay } from './components/HUDOverlay';
 import { PauseMenu } from './components/PauseMenu';
 import { LevelUpScreen } from './components/LevelUpScreen';
+import { NextFloorScreen } from './components/NextFloorScreen';
 import { EndingCutscene } from './components/EndingCutscene';
 import { StoryCutscene } from './components/StoryCutscene';
+import { BossPreview } from './components/BossPreview';
+import { KeSaNgaPreview } from './bosses/KeSaNga/KeSaNgaPreview';
+import { GauSamSetPreview } from './bosses/GauSamSet/GauSamSetPreview';
+import { RezePreview } from './characters/Reze/RezePreview';
 import { HelpCircle } from 'lucide-react';
 import './overlay.css';
 
@@ -59,6 +64,13 @@ function App() {
       {/* Màn hình Tạm dừng */}
       {phase === 'paused' && <PauseMenu />}
       {phase === 'level_up' && <LevelUpScreen />}
+      {phase === 'next_floor' && <NextFloorScreen />}
+      
+      {/* Pixel Boss Preview System */}
+      {phase === 'boss_preview' && <BossPreview />}
+      {phase === 'kesanga_preview' && <KeSaNgaPreview />}
+      {phase === 'gausamset_preview' && <GauSamSetPreview />}
+      {phase === 'reze_preview' && <RezePreview />}
 
       {/* Màn hình báo Thắng / Thua */}
       {(phase === 'game_over' || phase === 'victory') && <GameOverScreen />}

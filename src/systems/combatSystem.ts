@@ -5,7 +5,7 @@ import type { Entity } from '../types/interfaces';
 import { CHARACTER_CLASSES } from '../data/classes';
 
 export function runCombatSystem(_delta: number) {
-  const { player, updatePlayer, enemies, updateEnemy, addDamageNumber, addParticle } = useEntityStore.getState();
+  const { player, updatePlayer, enemies, updateEnemy, addDamageNumber, addParticle, activeBossInstance } = useEntityStore.getState();
   const currentTime = performance.now();
 
   if (!player) return;
@@ -158,13 +158,38 @@ export function runCombatSystem(_delta: number) {
           lifespan: 150
         });
       }
+
+      // --- Sát thương Whirlwind cho Boss ---
+      if (activeBossInstance && activeBossInstance.hp > 0 && activeBossInstance.state !== 'death') {
+        const hb = activeBossInstance.getHitboxes().bodyBox;
+        const closestX = Math.max(hb.x, Math.min(player.x, hb.x + hb.width));
+        const closestY = Math.max(hb.y, Math.min(player.y, hb.y + hb.height));
+        const distanceX = player.x - closestX;
+        const distanceY = player.y - closestY;
+        const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+
+        if (distanceSquared <= wwRadius * wwRadius) {
+           activeBossInstance.takeDamage(8);
+           const prevCombo = player.comboCount || 0;
+           updatePlayer({ comboCount: prevCombo + 1, lastComboTime: currentTime });
+           addDamageNumber({
+             id: `ww_boss_dmg_${Date.now()}_${Math.random()}`,
+             x: player.x, y: player.y - 15, value: 8, color: '#ef4444', isCrit: true, createdAt: currentTime, lifespan: 500
+           });
+           for (let k = 0; k < 3; k++) {
+             addParticle({
+               id: `ww_boss_blood_${Date.now()}_${k}`, x: player.x, y: player.y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4, radius: 2, color: '#dc2626', alpha: 0.8, decay: 0.05, createdAt: currentTime, lifespan: 200
+             });
+           }
+        }
+      }
     }
   }
 }
 
 // --- HÀM KÍCH HOẠT CHIÊU CUỐI (ULTIMATE ATTACK) ---
 export function triggerPlayerUltimate() {
-  const { player, updatePlayer, addParticle, addDamageNumber, setCameraShake, enemies, updateEnemy } = useEntityStore.getState();
+  const { player, updatePlayer, addParticle, addDamageNumber, setCameraShake, enemies, updateEnemy, activeBossInstance } = useEntityStore.getState();
   if (!player || player.hp <= 0) return;
 
   // Cần ít nhất 50 MP (Sanity) để dùng Ultimate
@@ -217,11 +242,26 @@ export function triggerPlayerUltimate() {
       }
     }
   });
+
+  // Gây sát thương chiêu cuối lên Boss
+  if (activeBossInstance && activeBossInstance.hp > 0 && activeBossInstance.state !== 'death') {
+     const hb = activeBossInstance.getHitboxes().bodyBox;
+     const bx = hb.x + hb.width/2;
+     const by = hb.y + hb.height/2;
+     const dist = Math.hypot(bx - player.x, by - player.y);
+     if (dist < 1000) {
+       const dmg = 300 + Math.floor(Math.random() * 200);
+       activeBossInstance.takeDamage(dmg);
+       addDamageNumber({
+         id: `ult_boss_dmg_${Date.now()}`, x: bx, y: by - 50, value: dmg, text: 'OBLITERATED', color: '#f43f5e', isCrit: true, createdAt: currentTime, lifespan: 1500
+       });
+     }
+  }
 }
 
 // --- HÀM KÍCH HOẠT TẤN CÔNG (BẮN SÚNG / CẬN CHIẾN) ---
 export function triggerPlayerAttack(mouseX: number, mouseY: number) {
-  const { player, updatePlayer, addProjectile, enemies, updateEnemy, addParticle, addDamageNumber, setCameraShake, projectiles, setProjectiles } = useEntityStore.getState();
+  const { player, updatePlayer, addProjectile, enemies, updateEnemy, addParticle, addDamageNumber, setCameraShake, projectiles, setProjectiles, activeBossInstance } = useEntityStore.getState();
   const { currentRoomId, addBloodDecal } = useMapStore.getState();
   if (!player) return;
 
@@ -586,6 +626,45 @@ export function triggerPlayerAttack(mouseX: number, mouseY: number) {
         }
       }
     });
+
+    // 1.5. Quét Siêu Boss bị chém trúng
+    if (activeBossInstance && activeBossInstance.hp > 0 && activeBossInstance.state !== 'death') {
+       const hb = activeBossInstance.getHitboxes().bodyBox;
+       const closestX = Math.max(hb.x, Math.min(player.x, hb.x + hb.width));
+       const closestY = Math.max(hb.y, Math.min(player.y, hb.y + hb.height));
+       const dx = closestX - player.x;
+       const dy = closestY - player.y;
+       const dist = Math.sqrt(dx * dx + dy * dy);
+       
+       if (dist <= arcRadius) {
+         const enemyAngle = Math.atan2(dy, dx);
+         let angleDiff = enemyAngle - baseAngle;
+         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+
+         if (Math.abs(angleDiff) <= Math.PI / 3) {
+            const prevCombo = player.comboCount || 0;
+            updatePlayer({ comboCount: prevCombo + 1, lastComboTime: currentTime });
+            useGameStore.getState().triggerHitStop(isCrit ? 80 : 50);
+
+            activeBossInstance.takeDamage(finalDamage);
+
+            if (hasCursedRing && !cursedRingTriggered) {
+              cursedRingTriggered = true;
+              updatePlayer({ hp: Math.max(1, player.hp - 1), sanity: Math.max(0, (player.sanity ?? 100) - 2) });
+              for(let p_blood = 0; p_blood < 5; p_blood++) {
+                addParticle({ id: `cursed_blood_${Date.now()}_${p_blood}`, x: player.x, y: player.y, vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4, radius: 2, color: '#991b1b', alpha: 0.9, decay: 0.05, createdAt: currentTime, lifespan: 300 });
+              }
+            }
+
+            addDamageNumber({ id: `dmg_boss_${Date.now()}_${Math.random()}`, x: closestX, y: closestY - 20, value: finalDamage, color: isCrit ? '#f97316' : '#ffffff', isCrit, createdAt: currentTime, lifespan: 600 });
+            
+            for (let k = 0; k < (isCrit ? 10 : 5); k++) {
+              addParticle({ id: `blood_boss_${Date.now()}_${k}`, x: closestX, y: closestY, vx: Math.cos(enemyAngle)*3 + (Math.random()-0.5)*2, vy: Math.sin(enemyAngle)*3 + (Math.random()-0.5)*2, radius: 2+Math.random()*2, color: '#b91c1c', alpha: 0.9, decay: 0.05, createdAt: currentTime, lifespan: 250 });
+            }
+         }
+       }
+    }
 
     // 2. Phản xạ/Xoá đạn của quái vật trong vòng quét kiếm (Rất quan trọng!)
     const remainingProjectiles = projectiles.filter(proj => {

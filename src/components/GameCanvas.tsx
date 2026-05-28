@@ -5,8 +5,11 @@ import { useGameStore } from '../store/gameStore';
 import { triggerPlayerAttack, triggerPlayerSkill, triggerPlayerUltimate } from '../systems/combatSystem';
 import { useGameLoop } from '../gameLoop/useGameLoop';
 import { drawPlayerChibi } from '../graphics/drawPlayer';
+import { drawEnemy } from '../graphics/drawEnemy';
 import { getStoneFloorTexture, getWallTexture } from '../graphics/textureGen';
 import type { Entity } from '../types/interfaces';
+
+let footstepParticles: Array<{x: number, y: number, life: number, maxLife: number, size: number, vx: number, vy: number}> = [];
 
 const drawMonster = (ctx: CanvasRenderingContext2D, enemy: Entity, isStunned: boolean, bounce: number) => {
   ctx.save();
@@ -31,470 +34,8 @@ const drawMonster = (ctx: CanvasRenderingContext2D, enemy: Entity, isStunned: bo
     ctx.restore();
   }
 
-  ctx.rotate(enemy.angle);
-
-  let renderColor = isStunned ? '#67e8f9' : (enemy.color || '#ef4444');
-  if (enemy.dashState === 'warning') {
-    renderColor = Math.floor(performance.now() / 100) % 2 === 0 ? '#fff' : '#ef4444';
-  }
-  ctx.fillStyle = renderColor;
-
-  if (enemy.aiPattern === 'ambush') {
-    // Vẽ thành đống xương rỉ sét dưới đất
-    ctx.fillStyle = '#27272a';
-    ctx.fillRect(-enemy.radius, -enemy.radius * 0.3, enemy.radius * 2, enemy.radius * 0.6);
-    ctx.fillStyle = '#3f3f46';
-    ctx.fillRect(-enemy.radius * 0.5, -enemy.radius * 0.8, enemy.radius, enemy.radius * 0.5);
-    ctx.restore();
-    return;
-  }
-
-  if (enemy.templateId === 'melee_goblin') {
-    // Cultist / Zombie lở loét
-    // Thân bị rữa
-    const bodyGrad = ctx.createLinearGradient(0, -enemy.radius, 0, enemy.radius);
-    bodyGrad.addColorStop(0, '#57534e'); // Xám xanh
-    bodyGrad.addColorStop(1, '#1c1917');
-    ctx.fillStyle = bodyGrad;
-    ctx.beginPath();
-    ctx.ellipse(0, bounce, enemy.radius, enemy.radius * 1.2, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Vết lở loét (máu)
-    ctx.fillStyle = '#7f1d1d';
-    ctx.beginPath(); ctx.arc(-4, bounce - 4, 3, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(6, bounce + 6, 4, 0, Math.PI*2); ctx.fill();
-
-    // Đầu nghiêng
-    ctx.save();
-    ctx.translate(enemy.radius * 0.4, -enemy.radius * 0.5 + bounce);
-    ctx.rotate(Math.sin(performance.now()/300)*0.2);
-    ctx.fillStyle = '#a8a29e'; // Da xám nhợt
-    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#000'; ctx.fillRect(2, -2, 2, 2); // 1 mắt hỏng
-    ctx.restore();
-
-    // Dao gỉ (Cánh tay)
-    if (!enemy.missingLimbs?.includes('arm')) {
-      ctx.fillStyle = '#52525b';
-      ctx.save();
-      ctx.translate(enemy.radius * 0.8, enemy.radius * 0.6 + bounce);
-      ctx.rotate(Math.PI / 4 + Math.sin(performance.now() / 200) * 0.2);
-      ctx.fillRect(-2, -15, 4, 20); // Lưỡi dao
-      ctx.fillStyle = '#451a03';
-      ctx.fillRect(-4, -5, 8, 4); // Chuôi
-      ctx.restore();
-    } else {
-      // Vết thương máu đứt tay rỉ máu
-      ctx.fillStyle = '#7f1d1d';
-      ctx.beginPath(); ctx.arc(enemy.radius * 0.6, enemy.radius * 0.4 + bounce, 4, 0, Math.PI*2); ctx.fill();
-    }
-
-  } else if (enemy.templateId === 'ranged_skeleton' || enemy.templateId === 'melee_skeleton') {
-    // Shattered Skeleton (Chân thực)
-    ctx.fillStyle = isStunned ? '#67e8f9' : '#e4e4e7';
-    
-    // Xương chậu & Xương sườn
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#27272a';
-    ctx.beginPath();
-    ctx.moveTo(0, bounce - 5); ctx.lineTo(0, bounce + 10); // Cột sống
-    ctx.moveTo(-6, bounce - 2); ctx.lineTo(6, bounce - 2); // Xương sườn
-    ctx.moveTo(-8, bounce + 2); ctx.lineTo(8, bounce + 2);
-    ctx.moveTo(-5, bounce + 8); ctx.lineTo(5, bounce + 8); // Xương chậu
-    ctx.stroke();
-
-    // Hộp sọ
-    ctx.beginPath(); ctx.arc(0, bounce - 12, 7, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-    
-    // Hốc mắt rỗng
-    ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.ellipse(-3, bounce - 13, 2, 3, 0, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(3, bounce - 13, 2, 3, 0, 0, Math.PI*2); ctx.fill();
-    
-    // Đốm sáng quỷ
-    ctx.fillStyle = enemy.templateId === 'ranged_skeleton' ? '#ef4444' : '#38bdf8';
-    ctx.beginPath(); ctx.arc(-3, bounce - 13, 1, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(3, bounce - 13, 1, 0, Math.PI*2); ctx.fill();
-
-    // Vũ khí (Cánh tay xương)
-    if (!enemy.missingLimbs?.includes('arm')) {
-      ctx.strokeStyle = '#e4e4e7'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(6, bounce - 4); ctx.lineTo(14, bounce + 6); ctx.stroke(); // Xương tay
-
-      if (enemy.templateId === 'melee_skeleton') {
-        ctx.fillStyle = '#52525b';
-        ctx.save();
-        ctx.translate(14, bounce + 6);
-        ctx.rotate(Math.PI / 4 + Math.sin(performance.now() / 200) * 0.1);
-        ctx.fillRect(-2, -20, 4, 30); // Rựa
-        ctx.restore();
-      } else {
-        // Cung xương
-        ctx.strokeStyle = '#451a03'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(14, bounce + 6, 8, -Math.PI/2, Math.PI/2); ctx.stroke();
-        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(14, bounce - 2); ctx.lineTo(14, bounce + 14); ctx.stroke();
-      }
-    } else {
-      ctx.fillStyle = '#7f1d1d';
-      ctx.beginPath(); ctx.arc(6, bounce - 4, 3, 0, Math.PI*2); ctx.fill();
-    }
-
-  } else if (enemy.templateId === 'hallucination') {
-    // Ảo giác Bóng ma (Phantom) - Sanity distortion
-    const wave = Math.sin(performance.now() / 150) * 5;
-    ctx.fillStyle = `rgba(0, 0, 0, ${0.4 + Math.sin(performance.now() / 200) * 0.3})`;
-    ctx.shadowColor = '#450a0a';
-    ctx.shadowBlur = 15;
-    ctx.beginPath();
-    // Vẽ một hình dáng rách rưới
-    ctx.moveTo(0, -enemy.radius + wave);
-    ctx.lineTo(enemy.radius + wave, enemy.radius);
-    ctx.lineTo(-enemy.radius - wave, enemy.radius);
-    ctx.fill();
-    ctx.shadowBlur = 0; // reset
-  } else if (enemy.templateId === 'suicide_bat') {
-    // Floating Tumor (Khối u nhầy nhụa)
-    const sizeOffset = Math.sin(performance.now() / 100) * 4;
-    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, enemy.radius + sizeOffset);
-    grad.addColorStop(0, '#f87171');
-    grad.addColorStop(0.5, '#b91c1c');
-    grad.addColorStop(1, '#450a0a');
-
-    ctx.fillStyle = isStunned ? '#67e8f9' : grad;
-    ctx.beginPath();
-    ctx.arc(0, 0, enemy.radius + sizeOffset, 0, Math.PI*2);
-    ctx.fill();
-
-    // Mạch máu bập phồng
-    ctx.strokeStyle = '#450a0a'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-enemy.radius, -enemy.radius); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(enemy.radius, -enemy.radius*0.5); ctx.stroke();
-
-    // Con mắt to giữa thân
-    ctx.fillStyle = '#fef08a';
-    ctx.beginPath(); ctx.ellipse(0, 0, 6, 4, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI*2); ctx.fill();
-
-  } else if (enemy.templateId === 'necromancer') {
-    // Lich (Áo choàng bay phấp phới)
-    const floatY = Math.sin(performance.now() / 300) * 4;
-    ctx.fillStyle = isStunned ? '#67e8f9' : '#1e1b4b'; // Xanh tím sẫm
-    
-    // Áo choàng
-    ctx.beginPath();
-    ctx.moveTo(0, -enemy.radius + floatY);
-    ctx.lineTo(enemy.radius, enemy.radius*1.5 + floatY);
-    ctx.lineTo(-enemy.radius, enemy.radius*1.5 + floatY);
-    ctx.fill();
-
-    // Cổ cồn đen
-    ctx.fillStyle = '#0f172a';
-    ctx.beginPath(); ctx.arc(0, floatY, enemy.radius*0.8, 0, Math.PI*2); ctx.fill();
-
-    // Đốm mắt ma trơi
-    ctx.fillStyle = '#c084fc';
-    ctx.shadowColor = '#c084fc'; ctx.shadowBlur = 10;
-    ctx.beginPath(); ctx.arc(-4, -4 + floatY, 2, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(4, -4 + floatY, 2, 0, Math.PI*2); ctx.fill();
-    ctx.shadowBlur = 0;
-
-    if (!enemy.missingLimbs?.includes('arm')) {
-      // Gậy phép đầu lâu
-      ctx.fillStyle = '#451a03';
-      ctx.save();
-      ctx.translate(enemy.radius * 0.8, floatY);
-      ctx.rotate(Math.PI / 4 + Math.sin(performance.now() / 400) * 0.1);
-      ctx.fillRect(-2, -30, 4, 40); // Cán gậy
-      
-      // Đầu lâu phát sáng
-      ctx.shadowColor = '#a855f7'; ctx.shadowBlur = 15;
-      ctx.fillStyle = '#e9d5ff';
-      ctx.beginPath(); ctx.arc(0, -32, 6, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.arc(-2, -33, 1.5, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(2, -33, 1.5, 0, Math.PI*2); ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.restore();
-    } else {
-      ctx.fillStyle = '#450a0a';
-      ctx.beginPath(); ctx.arc(enemy.radius*0.6, floatY, 4, 0, Math.PI*2); ctx.fill();
-    }
-
-  } else if (enemy.templateId === 'weeping_wraith') {
-    // Oán Linh Máu (Weeping Wraith)
-    // Bóng ma lơ lửng, rỉ máu
-    const floatY = Math.sin(performance.now() / 250) * 5;
-    const isTelegraphing = enemy.dashState === 'warning';
-    
-    // Nếu đang chuẩn bị dịch chuyển, thân ảnh mờ đi
-    ctx.globalAlpha = isTelegraphing ? 0.3 + Math.sin(performance.now()/50)*0.2 : 0.85;
-
-    // Bóng đổ mờ ảo đỏ au
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = '#9f1239';
-    
-    // Tấm màn rách nát phủ từ đầu xuống
-    ctx.fillStyle = '#4c0519'; // Đỏ mận cực tối
-    ctx.beginPath();
-    ctx.moveTo(0, -enemy.radius + floatY);
-    
-    // Vạt áo lởm chởm
-    for (let i = 0; i <= Math.PI; i += Math.PI/4) {
-      const flap = Math.sin(performance.now()/200 + i) * 4;
-      ctx.lineTo(Math.cos(i)*enemy.radius*1.2, Math.sin(i)*enemy.radius*1.8 + floatY + flap);
-    }
-    ctx.fill();
-
-    // Lõi mặt (chỉ có dòng lệ máu)
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.arc(0, floatY - 4, enemy.radius*0.5, 0, Math.PI*2); ctx.fill();
-
-    // Vết nứt sáng đỏ
-    ctx.strokeStyle = '#f43f5e';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); 
-    ctx.moveTo(-2, floatY - 6); ctx.lineTo(0, floatY); ctx.lineTo(2, floatY + 4);
-    ctx.stroke();
-
-    // Giọt lệ máu rơi
-    if (Math.random() > 0.8) {
-       ctx.fillStyle = '#e11d48';
-       ctx.beginPath(); ctx.arc(0, floatY + 8 + (performance.now()%1000)/50, 1.5, 0, Math.PI*2); ctx.fill();
-    }
-    ctx.globalAlpha = 1.0;
-
-  } else if (enemy.templateId === 'flesh_golem') {
-    // Golem Xác Thịt (Flesh Golem)
-    // Một cục thịt chắp vá nặng nề, to lớn
-    const walkWobble = Math.sin(performance.now() / 300) * 2;
-    
-    // Bóng đổ to
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.beginPath(); ctx.ellipse(0, enemy.radius + bounce, enemy.radius, enemy.radius*0.4, 0, 0, Math.PI*2); ctx.fill();
-
-    // Thân chắp vá
-    ctx.fillStyle = '#713f12'; // Nâu xỉn thịt ôi
-    ctx.beginPath();
-    ctx.roundRect(-enemy.radius*0.8, -enemy.radius + bounce + walkWobble, enemy.radius*1.6, enemy.radius*1.8, 8);
-    ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = '#451a03'; ctx.stroke();
-
-    // Vết khâu chằng chịt
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(-10, -enemy.radius*0.5 + bounce + walkWobble);
-    ctx.lineTo(10, 0 + bounce + walkWobble);
-    ctx.moveTo(-5, -enemy.radius*0.3 + bounce + walkWobble); ctx.lineTo(0, -enemy.radius*0.6 + bounce + walkWobble);
-    ctx.moveTo(5, -10 + bounce + walkWobble); ctx.lineTo(12, -5 + bounce + walkWobble);
-    ctx.stroke();
-
-    // Tay to lớn lết đất
-    if (!enemy.missingLimbs?.includes('arm')) {
-       ctx.fillStyle = '#78350f';
-       // Tay trái
-       ctx.beginPath(); ctx.roundRect(-enemy.radius*1.2, -enemy.radius*0.2 + bounce - walkWobble, enemy.radius*0.5, enemy.radius*1.2, 4); ctx.fill(); ctx.stroke();
-       // Tay phải (To hơn)
-       ctx.beginPath(); ctx.roundRect(enemy.radius*0.7, -enemy.radius*0.4 + bounce + walkWobble, enemy.radius*0.6, enemy.radius*1.5, 6); ctx.fill(); ctx.stroke();
-    }
-
-    // Cái đầu nhỏ xíu mọc lệch trên vai
-    ctx.fillStyle = '#a16207';
-    ctx.beginPath(); ctx.arc(-enemy.radius*0.3, -enemy.radius - 4 + bounce + walkWobble, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-    // Mắt dại
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-enemy.radius*0.3 - 2, -enemy.radius - 5 + bounce + walkWobble, 2, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-enemy.radius*0.3 - 2, -enemy.radius - 5 + bounce + walkWobble, 1, 0, Math.PI*2); ctx.fill();
-
-  } else if (enemy.templateId === 'spirit_wolf') {
-    // Bóng ma thú (Ghoul Dog)
-    ctx.globalAlpha = 0.7;
-    ctx.fillStyle = enemy.color || '#2dd4bf';
-    ctx.shadowColor = enemy.color || '#2dd4bf'; ctx.shadowBlur = 10;
-    
-    // Thân thon dài
-    ctx.beginPath();
-    ctx.ellipse(0, bounce, enemy.radius * 1.5, enemy.radius * 0.8, 0, 0, Math.PI*2);
-    ctx.fill();
-    
-    // Đầu nhô ra
-    ctx.beginPath(); ctx.arc(enemy.radius, bounce - 4, enemy.radius*0.6, 0, Math.PI*2); ctx.fill();
-    // Mắt rực sáng
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(enemy.radius + 4, bounce - 6, 2, 0, Math.PI*2); ctx.fill();
-    
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1.0;
-
-  } else if (enemy.templateId === 'fairy') {
-    // Tinh linh hắc ám (Wisp/Soul)
-    const flap = Math.sin(performance.now() / 30) * 5;
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = enemy.color || '#fef08a';
-    ctx.fillStyle = enemy.color || '#fef08a';
-    
-    // Lõi năng lượng
-    ctx.beginPath(); ctx.arc(0, bounce, enemy.radius*0.6, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(0, bounce, enemy.radius*0.3, 0, Math.PI*2); ctx.fill();
-    
-    // Cánh bướm mờ ảo
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.beginPath(); ctx.ellipse(-enemy.radius, bounce - flap, enemy.radius, enemy.radius*0.5, Math.PI/4, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(enemy.radius, bounce - flap, enemy.radius, enemy.radius*0.5, -Math.PI/4, 0, Math.PI*2); ctx.fill();
-    
-    ctx.shadowBlur = 0;
-
-  } else if (enemy.templateId === 'grand_slime') {
-    // Amalgamation (Khối thịt nhầy nhụa khổng lồ + Xúc tu)
-    const isEnraged = enemy.hp < enemy.maxHp * 0.5;
-    const stretch = Math.sin(performance.now() / 150) * 4;
-    const t = performance.now() / 200;
-    
-    // Bóng đổ Boss đã được chuyển ra ngoài (Dynamic Shadows)
-
-    // VẼ XÚC TU (Kinematic-like Tentacles)
-    const numTentacles = isEnraged ? 8 : 5;
-    for (let i = 0; i < numTentacles; i++) {
-      const angleOffset = (i / numTentacles) * Math.PI * 2 + t * 0.2;
-      const tentacleLength = enemy.radius * (1.5 + Math.sin(t + i) * 0.5);
-      
-      ctx.lineWidth = 6;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      
-      // Gradient cho xúc tu
-      const tGrad = ctx.createLinearGradient(0, 0, Math.cos(angleOffset)*tentacleLength, Math.sin(angleOffset)*tentacleLength);
-      tGrad.addColorStop(0, '#450a0a');
-      tGrad.addColorStop(1, '#991b1b');
-      ctx.strokeStyle = tGrad;
-
-      ctx.beginPath();
-      ctx.moveTo(0, bounce);
-      
-      // Xúc tu chia làm 3 khớp
-      let currentX = 0;
-      let currentY = bounce;
-      let segmentAngle = angleOffset;
-      
-      for(let j = 1; j <= 3; j++) {
-        segmentAngle += Math.sin(t * 1.5 + i + j) * 0.4; // Độ ngoe nguẩy
-        currentX += Math.cos(segmentAngle) * (tentacleLength / 3);
-        currentY += Math.sin(segmentAngle) * (tentacleLength / 3);
-        ctx.lineTo(currentX, currentY);
-      }
-      ctx.stroke();
-      
-      // Mút ở đầu xúc tu (Suckers)
-      ctx.fillStyle = '#fca5a5';
-      ctx.beginPath(); ctx.arc(currentX, currentY, 3, 0, Math.PI*2); ctx.fill();
-    }
-
-    // Lõi Boss (Cơ thể chính)
-    const bossGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, enemy.radius * 1.5);
-    bossGrad.addColorStop(0, isEnraged ? '#ef4444' : '#991b1b');
-    bossGrad.addColorStop(0.7, isEnraged ? '#7f1d1d' : '#450a0a');
-    bossGrad.addColorStop(1, '#000000');
-
-    ctx.fillStyle = isStunned ? '#67e8f9' : bossGrad;
-    
-    // Khối thịt nhấp nhô
-    ctx.beginPath();
-    for (let i = 0; i < Math.PI * 2; i += 0.5) {
-      const wobble = Math.sin(t + i) * 8;
-      const rx = Math.cos(i) * (enemy.radius + stretch + wobble);
-      const ry = Math.sin(i) * (enemy.radius - stretch + wobble) + bounce;
-      if (i === 0) ctx.moveTo(rx, ry);
-      else ctx.lineTo(rx, ry);
-    }
-    ctx.closePath();
-    ctx.fill();
-
-    // Mắt chằng chịt
-    const numEyes = isEnraged ? 8 : 4;
-    for(let i=0; i<numEyes; i++) {
-      const ex = Math.sin(i * Math.PI/numEyes) * enemy.radius * 0.6;
-      const ey = Math.cos(i * Math.PI/numEyes) * enemy.radius * 0.6 + bounce;
-      
-      ctx.fillStyle = '#0f172a';
-      ctx.beginPath(); ctx.ellipse(ex, ey, 6, 4, Math.sin(t), 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#fef08a';
-      ctx.beginPath(); ctx.arc(ex, ey, 2, 0, Math.PI*2); ctx.fill();
-    }
-
-    if (isEnraged) {
-      // Trái tim đập thình thịch bộc lộ giữa ngực
-      const heartbeat = Math.sin(t * 8) * 2;
-      ctx.fillStyle = '#dc2626';
-      ctx.shadowBlur = 15; ctx.shadowColor = '#ef4444';
-      ctx.beginPath(); ctx.arc(0, bounce, 8 + heartbeat, 0, Math.PI*2); ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Răng nanh bao quanh trái tim
-      ctx.fillStyle = '#f3f4f6';
-      for(let r=0; r<Math.PI*2; r+=Math.PI/4) {
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(r)*12, Math.sin(r)*12 + bounce);
-        ctx.lineTo(Math.cos(r-0.2)*16, Math.sin(r-0.2)*16 + bounce);
-        ctx.lineTo(Math.cos(r+0.2)*16, Math.sin(r+0.2)*16 + bounce);
-        ctx.fill();
-      }
-    }
-  } else if (enemy.templateId === 'chainsaw_fiend') {
-    // Ác Quỷ Cưa
-    ctx.fillStyle = '#b91c1c'; // Thân đỏ tươi
-    ctx.beginPath(); ctx.arc(0, bounce, enemy.radius, 0, Math.PI * 2); ctx.fill();
-    // Lưỡi cưa trên đỉnh đầu
-    ctx.fillStyle = '#9ca3af'; // Xám kim loại
-    ctx.beginPath();
-    ctx.moveTo(-5, bounce - enemy.radius);
-    ctx.lineTo(5, bounce - enemy.radius);
-    ctx.lineTo(15, bounce - enemy.radius - 20);
-    ctx.lineTo(-15, bounce - enemy.radius - 20);
-    ctx.fill();
-    // Răng cưa nhấp nhô
-    ctx.fillStyle = '#111827';
-    const sawT = performance.now() / 50;
-    for (let s = -12; s <= 12; s += 6) {
-      const offset = (Math.sin(sawT + s) + 1) * 2;
-      ctx.beginPath(); ctx.arc(s, bounce - enemy.radius - 20 + offset, 2, 0, Math.PI * 2); ctx.fill();
-    }
-    // Mắt điên loạn
-    ctx.fillStyle = '#fef08a';
-    ctx.beginPath(); ctx.arc(-6, bounce - 4, 3, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(6, bounce - 4, 3, 0, Math.PI*2); ctx.fill();
-
-  } else if (enemy.templateId === 'blood_priest') {
-    // Tu Sĩ Máu
-    ctx.fillStyle = '#881337'; // Đỏ sẫm áo choàng
-    ctx.beginPath(); 
-    ctx.moveTo(0, bounce - enemy.radius);
-    ctx.lineTo(-enemy.radius, bounce + enemy.radius);
-    ctx.lineTo(enemy.radius, bounce + enemy.radius);
-    ctx.fill();
-    
-    // Sách phép đỏ
-    const floatBook = Math.sin(performance.now() / 200) * 4;
-    ctx.fillStyle = '#450a0a';
-    ctx.fillRect(-15, bounce + enemy.radius * 0.2 + floatBook, 10, 14);
-    ctx.strokeStyle = '#dc2626';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(-13, bounce + enemy.radius * 0.2 + 2 + floatBook, 6, 10);
-
-    // Khuôn mặt tái nhợt
-    ctx.fillStyle = '#f1f5f9';
-    ctx.beginPath(); ctx.arc(0, bounce - enemy.radius * 0.3, enemy.radius * 0.4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.arc(-2, bounce - enemy.radius * 0.4, 1.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(2, bounce - enemy.radius * 0.4, 1.5, 0, Math.PI * 2); ctx.fill();
-  } else {
-    // Fallback block
-    ctx.fillRect(-enemy.radius, -enemy.radius, enemy.radius * 2, enemy.radius * 2);
-  }
+  // Delegate việc vẽ Quái vật & Boss sang file riêng
+  drawEnemy(ctx, enemy, bounce, isStunned);
 
   // --- VẼ HIỆU ỨNG TRẠNG THÁI (STATUS FX) ---
   const time = performance.now();
@@ -1017,7 +558,8 @@ export const GameCanvas: React.FC = () => {
       const { 
         player, enemies, allies, projectiles, particles, damageNumbers,
         chests, shrines, shopItems, anvils, goldPickups, expPickups, healthPickups, relicPickups,
-        groundWeapons, destructibleBarrels, explosiveBarrels, portal, spikeTraps, cameraShake, cameraShakeDx, cameraShakeDy, updatePlayer
+        groundWeapons, destructibleBarrels, explosiveBarrels, portal, spikeTraps, cameraShake, cameraShakeDx, cameraShakeDy, updatePlayer,
+        activeBossInstance
       } = useEntityStore.getState();
 
       // Tính toạ độ camera (theo sát player)
@@ -1167,29 +709,51 @@ export const GameCanvas: React.FC = () => {
 
         if (trap.variant === 'lava') {
           // Lava Geyser
-          ctx.fillStyle = trap.active ? '#991b1b' : '#450a0a';
+          const grad = ctx.createRadialGradient(trap.x, trap.y, 0, trap.x, trap.y, trap.radius);
+          grad.addColorStop(0, trap.active ? '#fef08a' : '#7f1d1d');
+          grad.addColorStop(0.5, trap.active ? '#ea580c' : '#450a0a');
+          grad.addColorStop(1, '#1c1917');
+          ctx.fillStyle = grad;
+          
+          if (trap.active) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#ea580c';
+          }
           ctx.beginPath();
           ctx.arc(trap.x, trap.y, trap.radius, 0, Math.PI * 2);
           ctx.fill();
+          ctx.shadowBlur = 0;
+
           if (trap.active) {
             ctx.fillStyle = '#f97316';
-            ctx.beginPath(); ctx.arc(trap.x, trap.y, trap.radius * 0.6 + Math.sin(performance.now()/100)*2, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(trap.x, trap.y, trap.radius * 0.5 + Math.sin(performance.now()/100)*2, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = '#fef08a';
-            ctx.beginPath(); ctx.arc(trap.x, trap.y, trap.radius * 0.3 + Math.sin(performance.now()/50)*2, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(trap.x, trap.y, trap.radius * 0.2 + Math.sin(performance.now()/50)*2, 0, Math.PI*2); ctx.fill();
           }
         } else if (trap.variant === 'poison') {
           // Poison Vent
-          ctx.fillStyle = '#064e3b';
+          const grad = ctx.createRadialGradient(trap.x, trap.y, 0, trap.x, trap.y, trap.radius);
+          grad.addColorStop(0, trap.active ? '#4ade80' : '#064e3b');
+          grad.addColorStop(1, '#022c22');
+          ctx.fillStyle = grad;
+          
+          if (trap.active) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#22c55e';
+          }
+          
           ctx.fillRect(tx + 5, ty + 5, trapSize - 10, trapSize - 10);
           ctx.strokeStyle = '#022c22';
           ctx.lineWidth = 2;
           ctx.strokeRect(tx + 5, ty + 5, trapSize - 10, trapSize - 10);
+          ctx.shadowBlur = 0;
+          
           if (trap.active) {
             ctx.fillStyle = `rgba(34, 197, 94, ${0.4 + Math.sin(performance.now()/150)*0.2})`;
             ctx.beginPath(); ctx.arc(trap.x, trap.y, trap.radius, 0, Math.PI*2); ctx.fill();
-            for (let i = 0; i < 3; i++) {
+            for (let i = 0; i < 4; i++) {
               ctx.fillStyle = '#4ade80';
-              ctx.beginPath(); ctx.arc(trap.x + (Math.random()-0.5)*trapSize*0.8, trap.y + (Math.random()-0.5)*trapSize*0.8, 2+Math.random()*3, 0, Math.PI*2); ctx.fill();
+              ctx.beginPath(); ctx.arc(trap.x + (Math.random()-0.5)*trapSize*0.8, trap.y + (Math.random()-0.5)*trapSize*0.8, 2+Math.random()*4, 0, Math.PI*2); ctx.fill();
             }
           }
         } else {
@@ -1201,17 +765,26 @@ export const GameCanvas: React.FC = () => {
           ctx.strokeRect(tx, ty, trapSize, trapSize);
 
           if (trap.active) {
-            ctx.fillStyle = '#7f1d1d';
+            ctx.fillStyle = '#b91c1c'; // Blood red tips
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#991b1b';
             for (let i = 0; i < 3; i++) {
               for (let j = 0; j < 3; j++) {
-                ctx.fillRect(tx + 6 + i * 15, ty + 6 + j * 15, 6, 6);
+                ctx.beginPath();
+                ctx.moveTo(tx + 6 + i * 15, ty + 12 + j * 15);
+                ctx.lineTo(tx + 12 + i * 15, ty + 12 + j * 15);
+                ctx.lineTo(tx + 9 + i * 15, ty + 4 + j * 15);
+                ctx.fill();
               }
             }
+            ctx.shadowBlur = 0;
           } else {
             ctx.fillStyle = '#000';
             for (let i = 0; i < 3; i++) {
               for (let j = 0; j < 3; j++) {
-                ctx.fillRect(tx + 8 + i * 15, ty + 8 + j * 15, 2, 2);
+                ctx.beginPath();
+                ctx.arc(tx + 9 + i * 15, ty + 9 + j * 15, 2, 0, Math.PI*2);
+                ctx.fill();
               }
             }
           }
@@ -1234,42 +807,66 @@ export const GameCanvas: React.FC = () => {
 
       // Nền bóng râm cho tường (Shadow)
       ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(5, 5, ROOM_WIDTH, WALL_THICKNESS + 10);
-      ctx.fillRect(5, ROOM_HEIGHT - WALL_THICKNESS - 5, ROOM_WIDTH, WALL_THICKNESS + 10);
-      ctx.fillRect(5, 5, WALL_THICKNESS + 10, ROOM_HEIGHT);
-      ctx.fillRect(ROOM_WIDTH - WALL_THICKNESS - 5, 5, WALL_THICKNESS + 10, ROOM_HEIGHT);
+      ctx.fillRect(10, 10, ROOM_WIDTH, WALL_THICKNESS + 10);
+      ctx.fillRect(10, ROOM_HEIGHT - WALL_THICKNESS - 10, ROOM_WIDTH, WALL_THICKNESS + 10);
+      ctx.fillRect(10, 10, WALL_THICKNESS + 10, ROOM_HEIGHT);
+      ctx.fillRect(ROOM_WIDTH - WALL_THICKNESS - 10, 10, WALL_THICKNESS + 10, ROOM_HEIGHT);
 
+      // --- VẼ TƯỜNG (3D effect) ---
+      const depth = 20; // Độ sâu 3D của tường
+      
+      // Mặt bên (Side faces) - Tối hơn
+      ctx.fillStyle = '#0a0a0a'; 
+      // Tường trên (mặt trước)
+      ctx.fillRect(0, WALL_THICKNESS, ROOM_WIDTH, depth);
+      // Tường trái (mặt phải)
+      ctx.fillRect(WALL_THICKNESS, 0, depth, ROOM_HEIGHT);
+      // Tường phải (mặt trái)
+      ctx.fillRect(ROOM_WIDTH - WALL_THICKNESS - depth, 0, depth, ROOM_HEIGHT);
+      // Tường dưới (mặt sau - thường bị che bởi top face, nhưng vẽ cho chắc)
+      ctx.fillRect(0, ROOM_HEIGHT - WALL_THICKNESS - depth, ROOM_WIDTH, depth);
+
+      // Mặt trên cùng (Top faces) - Sáng hơn, có texture
       if (wallPat) {
         ctx.fillStyle = wallPat;
       } else {
         ctx.fillStyle = '#1c1917';
       }
+      // Top wall
       ctx.fillRect(0, 0, ROOM_WIDTH, WALL_THICKNESS);
       ctx.strokeRect(0, 0, ROOM_WIDTH, WALL_THICKNESS);
+      // Bottom wall
       ctx.fillRect(0, ROOM_HEIGHT - WALL_THICKNESS, ROOM_WIDTH, WALL_THICKNESS);
       ctx.strokeRect(0, ROOM_HEIGHT - WALL_THICKNESS, ROOM_WIDTH, WALL_THICKNESS);
+      // Left wall
       ctx.fillRect(0, 0, WALL_THICKNESS, ROOM_HEIGHT);
       ctx.strokeRect(0, 0, WALL_THICKNESS, ROOM_HEIGHT);
+      // Right wall
       ctx.fillRect(ROOM_WIDTH - WALL_THICKNESS, 0, WALL_THICKNESS, ROOM_HEIGHT);
       ctx.strokeRect(ROOM_WIDTH - WALL_THICKNESS, 0, WALL_THICKNESS, ROOM_HEIGHT);
 
       // --- VẼ CỬA PHÒNG (GATES) ---
       const drawGate = (gx: number, gy: number, w: number, h: number, hasGate: boolean, direction: string) => {
-        if (!hasGate) {
-          ctx.fillStyle = '#0c0a09';
-          ctx.fillRect(gx, gy, w, h);
-          return;
-        }
+        if (!hasGate) return; // Không có cửa thì giữ nguyên tường
+
+        // Nền của cửa (cắt tường bằng màu nền mờ)
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(gx, gy, w, h);
 
         if (isLocked) {
           // Forcefield cổng kim loại / Gai xương chéo
           const t = performance.now() / 200;
-          ctx.fillStyle = '#1c1917'; // Khung kim loại
+          
+          // Khung cửa
+          ctx.fillStyle = '#292524'; 
           ctx.fillRect(gx, gy, w, h);
+          ctx.strokeStyle = '#1c1917';
+          ctx.lineWidth = 4;
+          ctx.strokeRect(gx, gy, w, h);
           
           // Các thanh kim loại chạy chéo hoặc thẳng
-          ctx.lineWidth = 8;
-          ctx.strokeStyle = '#0c0a09';
+          ctx.lineWidth = 6;
+          ctx.strokeStyle = '#000';
           ctx.beginPath();
           if (direction === 'north' || direction === 'south') {
             for (let offset = 15; offset < w; offset += 30) {
@@ -1284,25 +881,54 @@ export const GameCanvas: React.FC = () => {
           }
           ctx.stroke();
 
-          // Forcefield Glow
-          ctx.fillStyle = `rgba(220, 38, 38, ${0.3 + Math.sin(t)*0.1})`;
+          // Forcefield Glow Đỏ chớp tắt
+          ctx.fillStyle = `rgba(220, 38, 38, ${0.4 + Math.sin(t)*0.2})`;
           ctx.fillRect(gx, gy, w, h);
           ctx.strokeStyle = '#ef4444';
           ctx.lineWidth = 2;
           ctx.strokeRect(gx + 2, gy + 2, w - 4, h - 4);
 
         } else {
-          // Hành lang tối tăm mở ra
+          // Hành lang mở ra - Vẽ thảm đỏ dẫn đường và viền cửa rõ ràng
+          ctx.fillStyle = '#1c1917'; // Khung cửa bằng đá
+          ctx.fillRect(gx, gy, w, h);
+          
+          // Vẽ thảm đỏ ở giữa cửa
+          ctx.fillStyle = '#7f1d1d'; // Đỏ thẫm
+          if (direction === 'north' || direction === 'south') {
+            ctx.fillRect(gx + w/4, gy, w/2, h);
+          } else {
+            ctx.fillRect(gx, gy + h/4, w, h/2);
+          }
+
+          // Hiệu ứng ánh sáng mời gọi
           const grad = ctx.createLinearGradient(
             direction === 'west' ? gx + w : gx,
             direction === 'north' ? gy + h : gy,
             direction === 'east' ? gx : direction === 'west' ? gx + w : gx,
             direction === 'south' ? gy : direction === 'north' ? gy + h : gy
           );
-          grad.addColorStop(0, '#1c1917');
-          grad.addColorStop(1, '#000000');
+          grad.addColorStop(0, 'rgba(0,0,0,0)');
+          grad.addColorStop(1, 'rgba(0,0,0,0.8)');
           ctx.fillStyle = grad;
           ctx.fillRect(gx, gy, w, h);
+
+          // Hai ngọn đuốc nhỏ hai bên cửa
+          const drawTorch = (tx: number, ty: number) => {
+            ctx.fillStyle = '#f59e0b'; // Lửa cam
+            ctx.beginPath(); ctx.arc(tx, ty, 4, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 10; ctx.shadowColor = '#f59e0b';
+            ctx.fillStyle = '#fef08a'; ctx.beginPath(); ctx.arc(tx, ty, 2, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+          };
+          
+          if (direction === 'north' || direction === 'south') {
+            drawTorch(gx + 5, direction === 'north' ? gy + h - 5 : gy + 5);
+            drawTorch(gx + w - 5, direction === 'north' ? gy + h - 5 : gy + 5);
+          } else {
+            drawTorch(direction === 'west' ? gx + w - 5 : gx + 5, gy + 5);
+            drawTorch(direction === 'west' ? gx + w - 5 : gx + 5, gy + h - 5);
+          }
         }
       };
 
@@ -1317,22 +943,38 @@ export const GameCanvas: React.FC = () => {
       // Ánh sáng phát ra từ Player, đổ bóng cho Quái vật, Bàn thờ, Rương
       if (player) {
         ctx.save();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // Bóng đen mờ
         
         const drawShadow = (objX: number, objY: number, radius: number) => {
+          // Dynamic Point Light Shadow with gradient fade
           const dx = objX - player.x;
           const dy = objY - player.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 10) return; // Quá gần không đổ bóng
           
           const angle = Math.atan2(dy, dx);
-          const shadowLength = 40 + (dist * 0.2); // Bóng dài ra khi ở xa
+          const shadowLength = 30 + (dist * 0.15); // Bóng dài ra khi ở xa
+          const shadowAlpha = Math.max(0.08, 0.45 - (dist / 1500));
           
+          // Gradient mờ dần từ gốc ra đuôi bóng
+          const endX = objX + Math.cos(angle) * shadowLength;
+          const endY = objY + Math.sin(angle) * shadowLength;
+          const shadowGrad = ctx.createLinearGradient(objX, objY, endX, endY);
+          shadowGrad.addColorStop(0, `rgba(0,0,0,${shadowAlpha})`);
+          shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+          
+          ctx.fillStyle = shadowGrad;
           ctx.beginPath();
-          // Vẽ một hình thang/cone đổ dài ra phía sau
-          ctx.arc(objX, objY, radius, angle - Math.PI/2, angle + Math.PI/2, true);
-          ctx.lineTo(objX + Math.cos(angle - 0.2) * shadowLength, objY + Math.sin(angle - 0.2) * shadowLength);
-          ctx.lineTo(objX + Math.cos(angle + 0.2) * shadowLength, objY + Math.sin(angle + 0.2) * shadowLength);
+          // Hình thang đổ dài ra phía sau
+          const p1x = objX + Math.cos(angle - Math.PI/2) * radius * 0.8;
+          const p1y = objY + Math.sin(angle - Math.PI/2) * radius * 0.8;
+          const p2x = objX + Math.cos(angle + Math.PI/2) * radius * 0.8;
+          const p2y = objY + Math.sin(angle + Math.PI/2) * radius * 0.8;
+          const spreadFactor = 1.4;
+          
+          ctx.moveTo(p1x, p1y);
+          ctx.lineTo(p2x, p2y);
+          ctx.lineTo(endX + Math.cos(angle + Math.PI/2) * radius * 0.3 * spreadFactor, endY + Math.sin(angle + Math.PI/2) * radius * 0.3 * spreadFactor);
+          ctx.lineTo(endX + Math.cos(angle - Math.PI/2) * radius * 0.3 * spreadFactor, endY + Math.sin(angle - Math.PI/2) * radius * 0.3 * spreadFactor);
           ctx.closePath();
           ctx.fill();
         };
@@ -1341,6 +983,14 @@ export const GameCanvas: React.FC = () => {
         shrines.forEach(s => drawShadow(s.x, s.y, s.radius));
         chests.forEach(c => drawShadow(c.x, c.y, c.radius));
         currentRoom?.pillars?.forEach(p => drawShadow(p.x, p.y, p.radius));
+        anvils.forEach(a => drawShadow(a.x, a.y, 20));
+        goldPickups.forEach(g => drawShadow(g.x, g.y, g.radius));
+        expPickups.forEach(e => drawShadow(e.x, e.y, e.radius));
+        healthPickups.forEach(h => drawShadow(h.x, h.y, h.radius));
+        shopItems.forEach(s => { if (!s.purchased) drawShadow(s.x, s.y, s.radius); });
+        groundWeapons.forEach(gw => drawShadow(gw.x, gw.y, gw.radius));
+        destructibleBarrels.forEach(b => drawShadow(b.x, b.y, b.radius));
+        explosiveBarrels.forEach(b => drawShadow(b.x, b.y, b.radius));
         ctx.restore();
       }
 
@@ -1409,10 +1059,39 @@ export const GameCanvas: React.FC = () => {
 
       // --- VẼ LÒ RÈN RỈ SÉT (ANVILS) ---
       anvils.forEach(anvil => {
-        ctx.fillStyle = anvil.used ? '#0c0a09' : '#292524';
-        ctx.fillRect(anvil.x - 20, anvil.y - 10, 40, 20); // Base
-        ctx.fillStyle = anvil.used ? '#000' : '#44403c';
-        ctx.fillRect(anvil.x - 25, anvil.y - 18, 50, 8); // Đỉnh đe
+        if (!anvil.used) {
+          // Metallic gradient base
+          const anvilGrad = ctx.createLinearGradient(anvil.x - 20, anvil.y, anvil.x + 20, anvil.y);
+          anvilGrad.addColorStop(0, '#1c1917');
+          anvilGrad.addColorStop(0.4, '#44403c');
+          anvilGrad.addColorStop(0.6, '#57534e'); // Specular
+          anvilGrad.addColorStop(1, '#1c1917');
+          ctx.fillStyle = anvilGrad;
+        } else {
+          ctx.fillStyle = '#0c0a09';
+        }
+        ctx.fillRect(anvil.x - 20, anvil.y - 10, 40, 20);
+        
+        // Đỉnh đe (gradient)
+        if (!anvil.used) {
+          const topGrad = ctx.createLinearGradient(anvil.x - 25, anvil.y - 18, anvil.x + 25, anvil.y - 10);
+          topGrad.addColorStop(0, '#27272a');
+          topGrad.addColorStop(0.5, '#52525b');
+          topGrad.addColorStop(1, '#27272a');
+          ctx.fillStyle = topGrad;
+          
+          // Tia lửa nhỏ trên đe
+          const sparkTime = performance.now();
+          if (Math.sin(sparkTime / 300) > 0.7) {
+            ctx.fillStyle = '#f97316';
+            ctx.shadowBlur = 6; ctx.shadowColor = '#f97316';
+            ctx.beginPath(); ctx.arc(anvil.x + (Math.sin(sparkTime) * 10), anvil.y - 20, 1.5, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+        } else {
+          ctx.fillStyle = '#000';
+        }
+        ctx.fillRect(anvil.x - 25, anvil.y - 18, 50, 8);
         
         if (!anvil.used) {
           ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
@@ -1428,21 +1107,39 @@ export const GameCanvas: React.FC = () => {
       // --- VẼ KÉN NHỤC THỂ (CHESTS) ---
       chests.forEach(chest => {
         const pulse = chest.opened ? 0 : Math.sin(performance.now() / 150) * 2;
-        ctx.fillStyle = chest.opened ? '#450a0a' : '#991b1b'; // Màu máu khô / Máu tươi
+        
+        if (!chest.opened) {
+          // Gradient flesh thịt
+          const chestGrad = ctx.createRadialGradient(chest.x, chest.y, 2, chest.x, chest.y, 22 + pulse);
+          chestGrad.addColorStop(0, '#dc2626');
+          chestGrad.addColorStop(0.6, '#991b1b');
+          chestGrad.addColorStop(1, '#450a0a');
+          ctx.fillStyle = chestGrad;
+        } else {
+          ctx.fillStyle = '#450a0a';
+        }
         ctx.fillRect(chest.x - 18 - pulse, chest.y - 12 - pulse, 36 + pulse*2, 24 + pulse*2);
         
         ctx.fillStyle = '#000';
-        ctx.fillRect(chest.x - 14, chest.y - 8, 28, 16); // Lõi sẫm bên trong
+        ctx.fillRect(chest.x - 14, chest.y - 8, 28, 16);
 
         if (!chest.opened) {
-          // Vân thịt đỏ dọc ngang
-          ctx.fillStyle = '#dc2626';
-          ctx.fillRect(chest.x - 10 - pulse, chest.y - 12 - pulse, 4, 24 + pulse*2);
-          ctx.fillRect(chest.x + 6 + pulse, chest.y - 12 - pulse, 4, 24 + pulse*2);
+          // Animated veins (mạch máu co giãn)
+          const veinPulse = Math.sin(performance.now() / 200) * 1.5;
+          ctx.strokeStyle = '#dc2626';
+          ctx.lineWidth = 2 + veinPulse * 0.5;
+          ctx.beginPath(); ctx.moveTo(chest.x - 10 - pulse, chest.y - 12 - pulse); ctx.lineTo(chest.x - 8 - pulse, chest.y + 12 + pulse); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(chest.x + 6 + pulse, chest.y - 12 - pulse); ctx.lineTo(chest.x + 8 + pulse, chest.y + 12 + pulse); ctx.stroke();
+          // Cross veins
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(chest.x - 12, chest.y - 2); ctx.lineTo(chest.x + 12, chest.y + 2); ctx.stroke();
+          
+          // Pulsing core glow
+          ctx.fillStyle = `rgba(220, 38, 38, ${0.3 + Math.sin(performance.now() / 100) * 0.2})`;
+          ctx.beginPath(); ctx.arc(chest.x, chest.y, 8 + veinPulse, 0, Math.PI * 2); ctx.fill();
         } else {
-          // Khi vỡ
           ctx.fillStyle = '#7f1d1d';
-          ctx.fillRect(chest.x - 20, chest.y + 10, 40, 4); // Nhầy nhụa dưới đất
+          ctx.fillRect(chest.x - 20, chest.y + 10, 40, 4);
         }
       });
 
@@ -1474,25 +1171,47 @@ export const GameCanvas: React.FC = () => {
       // --- VẼ VÀNG & MANA RƠI TRÊN ĐẤT (PICKUPS) ---
       goldPickups.forEach(gold => {
         const renderY = gold.y + (gold.z || 0);
-        ctx.fillStyle = '#fbbf24';
+        const sparkle = Math.sin(performance.now() / 100 + gold.x) * 0.3;
+        
+        // Gradient vàng kim
+        const goldGrad = ctx.createRadialGradient(gold.x - 1, renderY - 1, 0, gold.x, renderY, gold.radius + 1);
+        goldGrad.addColorStop(0, '#fef08a');
+        goldGrad.addColorStop(0.6, '#fbbf24');
+        goldGrad.addColorStop(1, '#92400e');
+        ctx.fillStyle = goldGrad;
         ctx.beginPath();
         ctx.arc(gold.x, renderY, gold.radius, 0, Math.PI * 2);
         ctx.fill();
-        // Hiệu ứng lấp lánh nhẹ
-        ctx.strokeStyle = '#fff';
+        
+        // Sparkle highlight
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.5 + sparkle})`;
+        ctx.beginPath();
+        ctx.arc(gold.x - 1, renderY - 1, gold.radius * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.strokeStyle = '#b45309';
         ctx.lineWidth = 1;
         ctx.stroke();
       });
 
       expPickups.forEach(exp => {
         const renderY = exp.y + (exp.z || 0);
-        const glow = Math.sin(performance.now() / 150) * 2;
-        ctx.fillStyle = '#2dd4bf'; // Teal
+        const glow = Math.sin(performance.now() / 150) * 3;
+        
+        // Hào quang phát sáng
+        const expGlow = ctx.createRadialGradient(exp.x, renderY, 0, exp.x, renderY, exp.radius * 2);
+        expGlow.addColorStop(0, 'rgba(45, 212, 191, 0.3)');
+        expGlow.addColorStop(1, 'rgba(45, 212, 191, 0)');
+        ctx.fillStyle = expGlow;
+        ctx.beginPath();
+        ctx.arc(exp.x, renderY, exp.radius * 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#2dd4bf';
         ctx.shadowColor = '#2dd4bf';
-        ctx.shadowBlur = 10 + glow;
+        ctx.shadowBlur = 12 + glow;
         
         ctx.beginPath();
-        // Vẽ hình thoi
         ctx.moveTo(exp.x, renderY - exp.radius);
         ctx.lineTo(exp.x + exp.radius, renderY);
         ctx.lineTo(exp.x, renderY + exp.radius);
@@ -1500,19 +1219,41 @@ export const GameCanvas: React.FC = () => {
         ctx.closePath();
         ctx.fill();
         
-        ctx.shadowBlur = 0; // Reset
+        // Lõi sáng trắng
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.beginPath();
+        ctx.arc(exp.x, renderY, exp.radius * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.shadowBlur = 0;
       });
 
       healthPickups.forEach(hp => {
         const renderY = hp.y + (hp.z || 0);
-        ctx.fillStyle = '#ef4444'; // Đỏ tươi
+        const pulse = Math.sin(performance.now() / 200) * 2;
+        
+        // Hào quang đỏ pulse
+        const hpGlow = ctx.createRadialGradient(hp.x, renderY, 0, hp.x, renderY, hp.radius * 2 + pulse);
+        hpGlow.addColorStop(0, 'rgba(239, 68, 68, 0.25)');
+        hpGlow.addColorStop(1, 'rgba(239, 68, 68, 0)');
+        ctx.fillStyle = hpGlow;
         ctx.beginPath();
-        ctx.arc(hp.x, renderY, hp.radius, 0, Math.PI * 2);
+        ctx.arc(hp.x, renderY, hp.radius * 2 + pulse, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
+        
+        // Quả cầu máu gradient
+        const hpGrad = ctx.createRadialGradient(hp.x - 1, renderY - 1, 0, hp.x, renderY, hp.radius + 1);
+        hpGrad.addColorStop(0, '#fca5a5');
+        hpGrad.addColorStop(0.5, '#ef4444');
+        hpGrad.addColorStop(1, '#991b1b');
+        ctx.fillStyle = hpGrad;
+        ctx.beginPath();
+        ctx.arc(hp.x, renderY, hp.radius + pulse * 0.3, 0, Math.PI * 2);
+        ctx.fill();
 
-        // Dấu thập trắng ở giữa quả cầu máu
+        // Dấu thập trắng phát sáng
         ctx.strokeStyle = '#ffffff';
+        ctx.shadowBlur = 3; ctx.shadowColor = '#ffffff';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(hp.x - 4, renderY);
@@ -1520,21 +1261,24 @@ export const GameCanvas: React.FC = () => {
         ctx.moveTo(hp.x, renderY - 4);
         ctx.lineTo(hp.x, renderY + 4);
         ctx.stroke();
+        ctx.shadowBlur = 0;
       });
 
       // --- VẼ RELIC RƠI TỪ RƯƠNG ---
       relicPickups.forEach(item => {
         const renderY = item.y + (item.z || 0);
-        let color = '#f472b6'; // Hồng mặc định
-
-        // Hiệu ứng nhấp nháy cho vòng sáng
+        const color = '#f472b6';
         const pulse = Math.abs(Math.sin(performance.now() / 200)) * 5;
+        const spin = performance.now() / 600;
         
-        ctx.shadowBlur = 10 + pulse;
+        ctx.shadowBlur = 12 + pulse;
         ctx.shadowColor = color;
         
-        // Vẽ khung tròn chứa relic
-        ctx.fillStyle = '#0f172a';
+        // Khung tròn gradient
+        const relicGrad = ctx.createRadialGradient(item.x, renderY, 0, item.x, renderY, item.radius + 3);
+        relicGrad.addColorStop(0, '#1e1b4b');
+        relicGrad.addColorStop(1, '#0f172a');
+        ctx.fillStyle = relicGrad;
         ctx.beginPath();
         ctx.arc(item.x, renderY, item.radius + 2, 0, Math.PI * 2);
         ctx.fill();
@@ -1543,14 +1287,18 @@ export const GameCanvas: React.FC = () => {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        ctx.shadowBlur = 0; // Reset shadow
+        ctx.shadowBlur = 0;
 
-        // Vẽ biểu tượng mini
+        // Ký hiệu rune xoay
+        ctx.save();
+        ctx.translate(item.x, renderY);
+        ctx.rotate(spin);
         ctx.fillStyle = color;
-        ctx.font = 'bold 10px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('R', item.x, renderY + 1); // R cho Relic
+        ctx.beginPath();
+        ctx.moveTo(0, -5); ctx.lineTo(4, 0); ctx.lineTo(0, 5); ctx.lineTo(-4, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       });
 
       // --- VẼ VŨ KHÍ RƠI TRÊN ĐẤT (GROUND WEAPONS) ---
@@ -1685,7 +1433,8 @@ export const GameCanvas: React.FC = () => {
           const distToLight = Math.hypot(enemy.x - player.x, enemy.y - player.y);
           
           ctx.save();
-          ctx.translate(enemy.x, enemy.y + enemy.radius * 0.8); // Gốc bóng ở chân
+          // Chân quái vật luôn ở enemy.y + enemy.radius
+          ctx.translate(enemy.x, enemy.y + enemy.radius); 
           ctx.rotate(angleToLight);
           
           const shadowStretch = Math.min(3.5, 1 + distToLight / 250);
@@ -1697,7 +1446,8 @@ export const GameCanvas: React.FC = () => {
           
           ctx.fillStyle = shadowGrad;
           ctx.beginPath();
-          ctx.ellipse(enemy.radius * shadowStretch * 0.5, 0, enemy.radius * shadowStretch * 0.8, enemy.radius * 0.35, 0, 0, Math.PI * 2);
+          // Thu nhỏ chiều rộng bóng đổ (width = 8) do thiết kế quái đã thon gọn hơn
+          ctx.ellipse(8 * shadowStretch, 0, 8 * shadowStretch, 3, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
         }
@@ -1705,24 +1455,71 @@ export const GameCanvas: React.FC = () => {
         drawMonster(ctx, enemy, isStunned, bounce);
 
         // Thanh HP nhỏ trên đầu quái
-        if (enemy.hp < enemy.maxHp) {
+        if (enemy.hp < enemy.maxHp && enemy.hp > 0) {
           const hpW = enemy.radius * 2;
           const hpH = 4;
           const hpx = enemy.x - enemy.radius;
-          const hpy = enemy.y - enemy.radius - 10;
+          const hpy = enemy.y - enemy.radius - 12;
 
-          ctx.fillStyle = '#1e293b';
-          ctx.fillRect(hpx, hpy, hpW, hpH);
-          ctx.fillStyle = '#ef4444';
-          ctx.fillRect(hpx, hpy, hpW * (enemy.hp / enemy.maxHp), hpH);
+          ctx.save();
+          // Khung viền thanh máu
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+          ctx.fillRect(hpx - 1, hpy - 1, hpW + 2, hpH + 2);
+          
+          // Lõi máu
+          const pct = Math.max(0, enemy.hp / enemy.maxHp);
+          const grad = ctx.createLinearGradient(hpx, 0, hpx + hpW, 0);
+          grad.addColorStop(0, '#7f1d1d');
+          grad.addColorStop(1, '#ef4444');
+          
+          ctx.fillStyle = grad;
+          ctx.fillRect(hpx, hpy, hpW * pct, hpH);
+          
+          // Ánh sáng nổi (Highlights)
+          ctx.fillStyle = 'rgba(255,255,255,0.2)';
+          ctx.fillRect(hpx, hpy, hpW * pct, hpH/2);
+          
+          ctx.restore();
         }
       });
+
+      // --- VẼ SIÊU BOSS (NẾU CÓ) ---
+      if (activeBossInstance && activeBossInstance.state !== 'death') {
+        activeBossInstance.render(ctx, false);
+      }
 
       // --- VẼ ĐỒNG MINH (ALLIES) ---
       allies.forEach(ally => {
         const bounce = Math.sin(performance.now() / 150) * 4;
         drawMonster(ctx, ally, false, bounce);
       });
+
+      // --- DUST PARTICLES QUANH CHÂN PLAYER ---
+      if (player && (Math.abs(player.vx) > 0.1 || Math.abs(player.vy) > 0.1)) {
+        if (Math.random() > 0.7) {
+          footstepParticles.push({
+            x: player.x + (Math.random() - 0.5) * 10,
+            y: player.y + player.radius + (Math.random() - 0.5) * 5,
+            life: 30, maxLife: 30,
+            size: 2 + Math.random() * 4,
+            vx: -player.vx * 0.2 + (Math.random() - 0.5) * 0.5,
+            vy: -player.vy * 0.2 + (Math.random() - 0.5) * 0.5 - 0.2
+          });
+        }
+      }
+
+      for (let i = footstepParticles.length - 1; i >= 0; i--) {
+        const p = footstepParticles[i];
+        p.x += p.vx; p.y += p.vy; p.life--;
+        if (p.life <= 0) {
+          footstepParticles.splice(i, 1);
+          continue;
+        }
+        ctx.fillStyle = `rgba(100, 90, 80, ${p.life / p.maxLife * 0.6})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (p.life / p.maxLife), 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // --- VẼ PLAYER (NHÂN VẬT CHÍNH - PROCEDURAL CHIBI) ---
       if (player) {
@@ -1960,14 +1757,12 @@ export const GameCanvas: React.FC = () => {
       });
       ctx.globalAlpha = 1.0; // Reset alpha
 
-      // --- VẼ CỘT ĐÁ (PILLARS) & BÓNG ĐỔ (DYNAMIC SHADOWS) ---
+      // --- VẼ CỘT ĐÁ (PILLARS 3D) & BÓNG ĐỔ (DYNAMIC SHADOWS) ---
       if (currentRoom?.pillars && player) {
         currentRoom.pillars.forEach(pillar => {
-          // 1. Tính toán Bóng Đổ (Shadow)
+          // 1. Tính toán Bóng Đổ (Shadow) — gradient fade
           const angleToPillar = Math.atan2(pillar.y - player.y, pillar.x - player.x);
           
-          // Vẽ một đa giác bóng kéo dài từ cột ra vô tận
-          // Hai điểm mép của cột đá vuông góc với hướng ánh sáng
           const shadowAngle1 = angleToPillar - Math.PI / 2;
           const shadowAngle2 = angleToPillar + Math.PI / 2;
           
@@ -1976,14 +1771,14 @@ export const GameCanvas: React.FC = () => {
           const p2x = pillar.x + Math.cos(shadowAngle2) * pillar.radius;
           const p2y = pillar.y + Math.sin(shadowAngle2) * pillar.radius;
           
-          const SHADOW_LENGTH = 3000; // Đổ xa ra ngoài màn hình
+          const SHADOW_LENGTH = 2000;
           const p3x = p2x + Math.cos(angleToPillar) * SHADOW_LENGTH;
           const p3y = p2y + Math.sin(angleToPillar) * SHADOW_LENGTH;
           const p4x = p1x + Math.cos(angleToPillar) * SHADOW_LENGTH;
           const p4y = p1y + Math.sin(angleToPillar) * SHADOW_LENGTH;
 
-          ctx.fillStyle = '#050505'; // Bóng đen rất đậm
-          ctx.globalAlpha = 0.95; // Che khuất 95%
+          ctx.fillStyle = '#050505';
+          ctx.globalAlpha = 0.9;
           ctx.beginPath();
           ctx.moveTo(p1x, p1y);
           ctx.lineTo(p2x, p2y);
@@ -1993,31 +1788,152 @@ export const GameCanvas: React.FC = () => {
           ctx.fill();
           ctx.globalAlpha = 1.0;
 
-          // 2. Vẽ Cột Đá (Pillar)
-          // Nền cột có bóng 3D
+          // 2. Vẽ Cột Đá 3D (Cylindrical Pillar)
+          const pr = pillar.radius;
+          
+          // Bóng nền cột
           ctx.fillStyle = 'rgba(0,0,0,0.5)';
-          ctx.fillRect(pillar.x - pillar.radius + 10, pillar.y - pillar.radius + 10, pillar.radius * 2, pillar.radius * 2);
+          ctx.beginPath();
+          ctx.ellipse(pillar.x + 8, pillar.y + 8, pr, pr, 0, 0, Math.PI * 2);
+          ctx.fill();
 
-          const pillarPat = ctx.createPattern(getWallTexture(biome), 'repeat');
-          if (pillarPat) {
-            ctx.fillStyle = pillarPat;
-          } else {
-            ctx.fillStyle = '#1e293b';
-          }
-          ctx.fillRect(pillar.x - pillar.radius, pillar.y - pillar.radius, pillar.radius * 2, pillar.radius * 2);
+          // Mặt bên cột (Gradient trụ 3D)
+          const pillarGrad = ctx.createLinearGradient(pillar.x - pr, pillar.y, pillar.x + pr, pillar.y);
+          pillarGrad.addColorStop(0, '#0a0a0a');
+          pillarGrad.addColorStop(0.3, '#3f3f46');
+          pillarGrad.addColorStop(0.5, '#52525b'); // Specular highlight
+          pillarGrad.addColorStop(0.7, '#3f3f46');
+          pillarGrad.addColorStop(1, '#0a0a0a');
+          
+          ctx.fillStyle = pillarGrad;
+          ctx.beginPath();
+          ctx.ellipse(pillar.x, pillar.y, pr, pr, 0, 0, Math.PI * 2);
+          ctx.fill();
           
           // Viền cột
-          ctx.strokeStyle = '#000000'; // Đen kịt
-          ctx.lineWidth = 4;
-          ctx.strokeRect(pillar.x - pillar.radius, pillar.y - pillar.radius, pillar.radius * 2, pillar.radius * 2);
+          ctx.strokeStyle = '#18181b';
+          ctx.lineWidth = 3;
+          ctx.stroke();
           
-          // Hoa văn đỉnh cột sáng hơn
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-          ctx.fillRect(pillar.x - pillar.radius + 10, pillar.y - pillar.radius + 10, pillar.radius * 2 - 20, pillar.radius * 2 - 20);
-          ctx.strokeStyle = '#111827';
+          // Vòng đai trang trí trên cột
+          ctx.strokeStyle = '#27272a';
           ctx.lineWidth = 2;
-          ctx.strokeRect(pillar.x - pillar.radius + 10, pillar.y - pillar.radius + 10, pillar.radius * 2 - 20, pillar.radius * 2 - 20);
+          ctx.beginPath();
+          ctx.ellipse(pillar.x, pillar.y - pr * 0.5, pr * 0.9, pr * 0.15, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.ellipse(pillar.x, pillar.y + pr * 0.5, pr * 0.9, pr * 0.15, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          
+          // Đỉnh cột sáng hơn (specular)
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+          ctx.beginPath();
+          ctx.ellipse(pillar.x - pr * 0.2, pillar.y - pr * 0.2, pr * 0.5, pr * 0.5, 0, 0, Math.PI * 2);
+          ctx.fill();
         });
+      }
+
+      // --- ĐUỐC TREO TƯỜNG (WALL TORCHES) ---
+      if (currentRoom) {
+        const torchPositions = [
+          { x: WALL_THICKNESS + 30, y: ROOM_HEIGHT * 0.25 },
+          { x: WALL_THICKNESS + 30, y: ROOM_HEIGHT * 0.75 },
+          { x: ROOM_WIDTH - WALL_THICKNESS - 30, y: ROOM_HEIGHT * 0.25 },
+          { x: ROOM_WIDTH - WALL_THICKNESS - 30, y: ROOM_HEIGHT * 0.75 },
+        ];
+        const tNow = performance.now();
+        torchPositions.forEach(tp => {
+          const flicker = Math.sin(tNow / 80 + tp.x) * 3 + Math.cos(tNow / 50 + tp.y) * 2;
+          
+          // Hào quang lửa
+          const torchGlow = ctx.createRadialGradient(tp.x, tp.y - 10, 0, tp.x, tp.y - 10, 60 + flicker);
+          torchGlow.addColorStop(0, 'rgba(251, 191, 36, 0.15)');
+          torchGlow.addColorStop(0.5, 'rgba(234, 88, 12, 0.06)');
+          torchGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = torchGlow;
+          ctx.beginPath();
+          ctx.arc(tp.x, tp.y - 10, 60 + flicker, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Giá đuốc
+          ctx.fillStyle = '#44403c';
+          ctx.fillRect(tp.x - 2, tp.y - 5, 4, 15);
+          
+          // Ngọn lửa
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.moveTo(tp.x - 4, tp.y - 5);
+          ctx.quadraticCurveTo(tp.x, tp.y - 18 - flicker, tp.x + 4, tp.y - 5);
+          ctx.fill();
+          
+          ctx.fillStyle = '#fef08a';
+          ctx.beginPath();
+          ctx.moveTo(tp.x - 2, tp.y - 5);
+          ctx.quadraticCurveTo(tp.x, tp.y - 12 - flicker * 0.5, tp.x + 2, tp.y - 5);
+          ctx.fill();
+        });
+      }
+
+      // --- AMBIENT BIOME PARTICLES ---
+      if (currentRoom) {
+        const tNow = performance.now();
+        if (biome === 'blood') {
+          // Máu nhỏ giọt từ trần
+          for (let i = 0; i < 8; i++) {
+            const seed = Math.sin(i * 1234.567 + tNow * 0.001) * 0.5 + 0.5;
+            const dx = seed * ROOM_WIDTH;
+            const dy = (tNow * 0.03 + i * 200) % ROOM_HEIGHT;
+            ctx.fillStyle = `rgba(127, 29, 29, ${0.4 + seed * 0.3})`;
+            ctx.beginPath();
+            ctx.ellipse(dx, dy, 1.5, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (biome === 'volcano') {
+          // Tàn lửa bay
+          for (let i = 0; i < 12; i++) {
+            const seed = Math.sin(i * 567.89);
+            const ex = (seed * 0.5 + 0.5) * ROOM_WIDTH;
+            const ey = ROOM_HEIGHT - ((tNow * 0.05 + i * 150) % ROOM_HEIGHT);
+            const size = 1.5 + Math.abs(seed) * 2;
+            ctx.fillStyle = `rgba(249, 115, 22, ${0.5 + Math.sin(tNow / 100 + i) * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(ex + Math.sin(tNow / 200 + i) * 10, ey, size, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (biome === 'ice') {
+          // Tuyết rơi
+          for (let i = 0; i < 15; i++) {
+            const seed = Math.sin(i * 345.678);
+            const sx = ((seed * 0.5 + 0.5) * ROOM_WIDTH + tNow * 0.01 * (i % 3 + 1)) % ROOM_WIDTH;
+            const sy = (tNow * 0.02 + i * 120) % ROOM_HEIGHT;
+            ctx.fillStyle = `rgba(186, 230, 253, ${0.3 + Math.abs(seed) * 0.4})`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 1 + Math.abs(seed) * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (biome === 'moss') {
+          // Bào tử bay
+          for (let i = 0; i < 10; i++) {
+            const seed = Math.sin(i * 789.01);
+            const mx = ((seed * 0.5 + 0.5) * ROOM_WIDTH + Math.sin(tNow / 500 + i) * 30) % ROOM_WIDTH;
+            const my = ((Math.abs(Math.cos(i * 234.5)) * ROOM_HEIGHT + tNow * 0.01) % ROOM_HEIGHT);
+            ctx.fillStyle = `rgba(74, 222, 128, ${0.2 + Math.abs(seed) * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(mx, my, 1.5 + Math.abs(seed), 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else {
+          // Dungeon — hạt bụi lơ lửng
+          for (let i = 0; i < 8; i++) {
+            const seed = Math.sin(i * 456.78);
+            const dx = ((seed * 0.5 + 0.5) * ROOM_WIDTH + Math.sin(tNow / 800 + i) * 20);
+            const dy = ((Math.abs(Math.cos(i * 123.4)) * ROOM_HEIGHT + tNow * 0.008) % ROOM_HEIGHT);
+            ctx.fillStyle = `rgba(120, 113, 108, ${0.15 + Math.abs(seed) * 0.15})`;
+            ctx.beginPath();
+            ctx.arc(dx, dy, 1 + Math.abs(seed), 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
       }
 
       // === VẼ CHỮ SÁT THƯƠNG (Damage Numbers) ===

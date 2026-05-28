@@ -47,6 +47,11 @@ export function useGameLoop() {
           runSanitySystem(clampedDelta);
           runVFXSystem(clampedDelta);
           
+          const { activeBossInstance, player } = useEntityStore.getState();
+          if (activeBossInstance) {
+            activeBossInstance.update(clampedDelta / 1000, player);
+          }
+          
           // Trừ Sanity mỗi 5 giây (5000ms)
           if (timestamp - lastSanityDrainRef.current >= 5000) {
             lastSanityDrainRef.current = timestamp;

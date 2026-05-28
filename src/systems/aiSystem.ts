@@ -240,6 +240,409 @@ export function runAISystem(_delta: number) {
         }
       }
     }
+    else if (enemy.aiPattern === 'dragon_boss') {
+      const state = enemy.dashState || 'reposition';
+      const stateStartTime = enemy.lastDashTime || currentTime;
+      const isEnragedPhase = enemy.hp <= (enemy.maxHp * 0.5);
+
+      // Check transition to enraged
+      if (isEnragedPhase && !enemy.isEnraged && state !== 'enraged_transition') {
+        updateEnemy(enemy.id, { 
+          dashState: 'enraged_transition', 
+          lastDashTime: currentTime,
+          isEnraged: true
+        });
+      }
+
+      if (state === 'enraged_transition') {
+        // Nổi điên: Đứng yên gầm rú, không di chuyển
+        targetVx = 0; targetVy = 0;
+        
+        // Sinh ra bão lửa (Firestorm) xung quanh
+        const lastSummon = enemy.lastSummonTime || 0;
+        if (currentTime - lastSummon > 400) {
+          updateEnemy(enemy.id, { lastSummonTime: currentTime });
+          addProjectile({
+            id: `enraged_storm_${Date.now()}_${enemy.id}`, owner: 'enemy',
+            x: enemy.x + (Math.random() - 0.5) * 300, 
+            y: enemy.y + (Math.random() - 0.5) * 300,
+            vx: 0, vy: 0, radius: 25, damage: enemy.damage!, color: '#f97316',
+            lifespan: 1000, createdAt: currentTime, element: 'fire'
+          });
+        }
+
+        if (currentTime - stateStartTime > 2500) {
+          updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+        }
+      } 
+      else if (state === 'reposition') {
+        // Đi vòng quanh hoặc giữ khoảng cách
+        const desiredDist = isEnragedPhase ? 150 : 250;
+        const speedMult = isEnragedPhase ? 2.5 : 1.5;
+
+        if (dist > desiredDist + 50) {
+          targetVx = (dx / dist) * speedMult;
+          targetVy = (dy / dist) * speedMult;
+        } else if (dist < desiredDist - 50) {
+          targetVx = -(dx / dist) * speedMult;
+          targetVy = -(dy / dist) * speedMult;
+        } else {
+          // Bay vòng tròn (Circle strafe)
+          targetVx = -(dy / dist) * speedMult;
+          targetVy = (dx / dist) * speedMult;
+        }
+
+        // Sau 2-3s, chọn chiêu thức ngẫu nhiên
+        const phaseDuration = isEnragedPhase ? 1500 : 2500;
+        if (currentTime - stateStartTime > phaseDuration) {
+          const rand = Math.random();
+          if (rand < 0.4) {
+            updateEnemy(enemy.id, { dashState: 'warning', lastDashTime: currentTime }); // Khạc lửa
+          } else if (rand < 0.7) {
+            updateEnemy(enemy.id, { 
+              dashState: 'dash_warning', 
+              lastDashTime: currentTime,
+              dashTargetX: dx / dist,
+              dashTargetY: dy / dist
+            }); // Lao tới cắn
+          } else {
+            updateEnemy(enemy.id, { dashState: 'homing_fire', lastDashTime: currentTime }); // Bắn cầu lửa
+          }
+        }
+      }
+      else if (state === 'dash_warning') {
+        // Chuẩn bị đâm bổ
+        targetVx = 0; targetVy = 0;
+        if (currentTime - stateStartTime > 800) {
+          updateEnemy(enemy.id, { 
+            dashState: 'dash_bite', 
+            lastDashTime: currentTime,
+            dashTargetX: dx / dist,
+            dashTargetY: dy / dist
+          });
+        }
+      }
+      else if (state === 'dash_bite') {
+        // Lao đi cực mạnh
+        const dashSpeed = isEnragedPhase ? 7 : 5;
+        targetVx = (enemy.dashTargetX || 0) * dashSpeed;
+        targetVy = (enemy.dashTargetY || 0) * dashSpeed;
+        
+        // Cắn nếu trúng
+        if (dist <= enemy.radius + player.radius + 10) {
+          const lastAttack = enemy.lastAttackTime || 0;
+          if (currentTime - lastAttack >= 500) {
+            updateEnemy(enemy.id, { lastAttackTime: currentTime });
+            dealDamageToPlayer(enemy.damage! * 1.5, player, currentTime, undefined, enemy.x, enemy.y);
+          }
+        }
+
+        if (currentTime - stateStartTime > 600) {
+          updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+        }
+      }
+      else if (state === 'homing_fire') {
+        // Đứng yên bắn Homing Fireballs
+        targetVx = (dx / dist) * 0.5; // Đi rất chậm
+        targetVy = (dy / dist) * 0.5;
+        
+        const lastAIShootTime = enemy.lastAIShootTime || 0;
+        const shootRate = isEnragedPhase ? 300 : 500;
+        
+        if (currentTime - lastAIShootTime > shootRate) {
+          updateEnemy(enemy.id, { lastAIShootTime: currentTime });
+          addProjectile({
+            id: `dragon_homing_${Date.now()}_${enemy.id}`, owner: 'enemy',
+            x: enemy.x, y: enemy.y,
+            vx: (dx/dist) * 2 + (Math.random()-0.5)*1,
+            vy: (dy/dist) * 2 + (Math.random()-0.5)*1,
+            radius: 8, damage: enemy.damage!, color: '#fbbf24',
+            lifespan: 3000, createdAt: currentTime, element: 'fire'
+          });
+        }
+
+        if (currentTime - stateStartTime > 1500) {
+          updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+        }
+      }
+      else if (state === 'warning') {
+        targetVx = 0; targetVy = 0;
+        if (currentTime - stateStartTime > (isEnragedPhase ? 1000 : 1500)) {
+          updateEnemy(enemy.id, { dashState: 'fire_breath', lastDashTime: currentTime });
+        }
+      } 
+      else if (state === 'fire_breath') {
+        targetVx = 0; targetVy = 0;
+        const lastAIShootTime = enemy.lastAIShootTime || 0;
+        const breathRate = isEnragedPhase ? 100 : 200;
+        
+        if (currentTime - lastAIShootTime > breathRate) {
+          updateEnemy(enemy.id, { lastAIShootTime: currentTime });
+          const aimAngle = Math.atan2(dy, dx);
+          
+          if (isEnragedPhase) {
+            // Nổi điên: Xoay tròn phun lửa 360 độ (Spiral Fire)
+            const timeOffset = (currentTime / 100) % (Math.PI * 2);
+            for (let i = 0; i < 4; i++) {
+              const spreadAngle = timeOffset + (i * Math.PI / 2);
+              addProjectile({
+                id: `dragon_fire_${Date.now()}_${i}_${enemy.id}`, owner: 'enemy',
+                x: enemy.x, y: enemy.y,
+                vx: Math.cos(spreadAngle) * 5.5, vy: Math.sin(spreadAngle) * 5.5,
+                radius: 7, damage: enemy.damage!, color: '#ef4444',
+                lifespan: 1500, createdAt: currentTime, element: 'fire'
+              });
+            }
+          } else {
+            // Bình thường: Phun lửa hình nón (Cone)
+            for (let i = -2; i <= 2; i++) {
+              const spreadAngle = aimAngle + i * 0.25; 
+              addProjectile({
+                id: `dragon_fire_${Date.now()}_${i}_${enemy.id}`, owner: 'enemy',
+                x: enemy.x + Math.cos(aimAngle) * enemy.radius * 0.8,
+                y: enemy.y + Math.sin(aimAngle) * enemy.radius * 0.8,
+                vx: Math.cos(spreadAngle) * 5, vy: Math.sin(spreadAngle) * 5,
+                radius: 6 + Math.random() * 4, damage: enemy.damage!, color: '#f97316',
+                lifespan: 1500, createdAt: currentTime, element: 'fire'
+              });
+            }
+          }
+        }
+
+        if (currentTime - stateStartTime > (isEnragedPhase ? 3000 : 2500)) {
+          updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+        }
+      }
+      else { 
+        // Fallback
+        updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+      }
+    }
+    else if (enemy.aiPattern === 'frost_boss') {
+      const state = enemy.dashState || 'reposition';
+      const stateStartTime = enemy.lastDashTime || currentTime;
+      const isEnragedPhase = enemy.hp <= (enemy.maxHp * 0.5);
+
+      if (isEnragedPhase && !enemy.isEnraged && state !== 'enraged_transition') {
+        updateEnemy(enemy.id, { dashState: 'enraged_transition', lastDashTime: currentTime, isEnraged: true });
+      }
+
+      if (state === 'enraged_transition') {
+        targetVx = 0; targetVy = 0;
+        if (currentTime - stateStartTime > 2000) updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+      } 
+      else if (state === 'reposition') {
+        // Frost Lord bay xa người chơi, rải đạn từ xa
+        if (dist < 200) { targetVx = -(dx / dist) * 2; targetVy = -(dy / dist) * 2; }
+        else { targetVx = -(dy / dist) * 1.5; targetVy = (dx / dist) * 1.5; }
+
+        if (currentTime - stateStartTime > (isEnragedPhase ? 1500 : 2500)) {
+          const rand = Math.random();
+          if (rand < 0.5) updateEnemy(enemy.id, { dashState: 'frost_spear', lastDashTime: currentTime });
+          else if (isEnragedPhase && rand < 0.8) updateEnemy(enemy.id, { dashState: 'blizzard', lastDashTime: currentTime });
+          else updateEnemy(enemy.id, { dashState: 'teleport', lastDashTime: currentTime });
+        }
+      }
+      else if (state === 'frost_spear') {
+        targetVx = 0; targetVy = 0;
+        const lastAIShootTime = enemy.lastAIShootTime || 0;
+        if (currentTime - lastAIShootTime > (isEnragedPhase ? 300 : 500)) {
+          updateEnemy(enemy.id, { lastAIShootTime: currentTime });
+          const aimAngle = Math.atan2(dy, dx);
+          // Bắn 3 mũi giáo băng
+          for (let i = -1; i <= 1; i++) {
+            addProjectile({
+              id: `frost_spear_${Date.now()}_${i}_${enemy.id}`, owner: 'enemy',
+              x: enemy.x, y: enemy.y,
+              vx: Math.cos(aimAngle + i * 0.15) * 8, vy: Math.sin(aimAngle + i * 0.15) * 8,
+              radius: 5, damage: enemy.damage!, color: '#38bdf8', lifespan: 2000, createdAt: currentTime, element: 'ice'
+            });
+          }
+        }
+        if (currentTime - stateStartTime > 2000) updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+      }
+      else if (state === 'blizzard') {
+        targetVx = 0; targetVy = 0;
+        const lastAIShootTime = enemy.lastAIShootTime || 0;
+        if (currentTime - lastAIShootTime > 200) {
+          updateEnemy(enemy.id, { lastAIShootTime: currentTime });
+          addProjectile({
+            id: `blizzard_${Date.now()}_${enemy.id}`, owner: 'enemy',
+            x: enemy.x + (Math.random()-0.5)*400, y: enemy.y + (Math.random()-0.5)*400,
+            vx: 0, vy: 0, radius: 40, damage: enemy.damage! * 0.5, color: '#e0f2fe', lifespan: 3000, createdAt: currentTime, element: 'ice'
+          });
+        }
+        if (currentTime - stateStartTime > 3000) updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+      }
+      else if (state === 'teleport') {
+        targetVx = 0; targetVy = 0;
+        if (currentTime - stateStartTime === 0) {
+          // Bắt đầu dịch chuyển -> Tạo hạt
+        }
+        if (currentTime - stateStartTime > 500) {
+          // Dịch chuyển ra phía sau người chơi
+          const pAngle = Math.atan2(player.vy, player.vx) || Math.random() * Math.PI * 2;
+          const nx = player.x - Math.cos(pAngle) * 150;
+          const ny = player.y - Math.sin(pAngle) * 150;
+          updateEnemy(enemy.id, { x: nx, y: ny, dashState: 'frost_spear', lastDashTime: currentTime });
+        }
+      }
+      else { updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime }); }
+    }
+    else if (enemy.aiPattern === 'toxic_boss') {
+      const state = enemy.dashState || 'reposition';
+      const stateStartTime = enemy.lastDashTime || currentTime;
+      const isEnragedPhase = enemy.hp <= (enemy.maxHp * 0.5);
+
+      if (isEnragedPhase && !enemy.isEnraged && state !== 'enraged_transition') {
+        updateEnemy(enemy.id, { dashState: 'enraged_transition', lastDashTime: currentTime, isEnraged: true });
+      }
+
+      if (state === 'enraged_transition') {
+        targetVx = 0; targetVy = 0;
+        if (currentTime - stateStartTime > 2000) updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+      } 
+      else if (state === 'reposition') {
+        // Quái nhầy di chuyển rất chậm về phía người chơi
+        targetVx = (dx / dist) * (isEnragedPhase ? 1.5 : 1.0);
+        targetVy = (dy / dist) * (isEnragedPhase ? 1.5 : 1.0);
+
+        if (currentTime - stateStartTime > 3000) {
+          const rand = Math.random();
+          if (rand < 0.4) updateEnemy(enemy.id, { dashState: 'poison_pool', lastDashTime: currentTime });
+          else if (isEnragedPhase && rand < 0.7) updateEnemy(enemy.id, { dashState: 'summon_slime', lastDashTime: currentTime });
+          else updateEnemy(enemy.id, { dashState: 'fire_breath', lastDashTime: currentTime }); // Mượn logic phun nón
+        }
+      }
+      else if (state === 'poison_pool') {
+        targetVx = 0; targetVy = 0;
+        if (currentTime - stateStartTime > 1000) {
+          // Phóng bãi độc
+          addProjectile({
+            id: `poison_pool_${Date.now()}_${enemy.id}`, owner: 'enemy',
+            x: player.x, y: player.y, // Phóng thẳng vào vị trí player
+            vx: 0, vy: 0, radius: 60, damage: enemy.damage! * 0.5, color: '#22c55e', lifespan: 5000, createdAt: currentTime, element: 'poison'
+          });
+          updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+        }
+      }
+      else if (state === 'summon_slime') {
+        targetVx = 0; targetVy = 0;
+        if (currentTime - stateStartTime > 1000) {
+          // Triệu hồi 3 con slime nhỏ
+          for(let i=0; i<3; i++) {
+            const angle = (Math.PI*2/3)*i;
+            useEntityStore.getState().addEnemy({
+              id: `slime_minion_${Date.now()}_${i}`, type: 'enemy',
+              x: enemy.x + Math.cos(angle)*50, y: enemy.y + Math.sin(angle)*50,
+              radius: 12, hp: 30, maxHp: 30, speed: 2.5, vx: 0, vy: 0,
+              damage: 3, angle: 0, color: '#4ade80', aiPattern: 'charge',
+              statusEffects: []
+            });
+          }
+          updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+        }
+      }
+      else if (state === 'fire_breath') { // Phun độc hình nón
+        targetVx = 0; targetVy = 0;
+        const lastAIShootTime = enemy.lastAIShootTime || 0;
+        if (currentTime - lastAIShootTime > 200) {
+          updateEnemy(enemy.id, { lastAIShootTime: currentTime });
+          const aimAngle = Math.atan2(dy, dx);
+          for (let i = -1; i <= 1; i++) {
+            addProjectile({
+              id: `toxic_breath_${Date.now()}_${i}_${enemy.id}`, owner: 'enemy',
+              x: enemy.x, y: enemy.y,
+              vx: Math.cos(aimAngle + i*0.2) * 6, vy: Math.sin(aimAngle + i*0.2) * 6,
+              radius: 8, damage: enemy.damage!, color: '#16a34a', lifespan: 1200, createdAt: currentTime, element: 'poison'
+            });
+          }
+        }
+        if (currentTime - stateStartTime > 2000) updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+      }
+      else { updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime }); }
+    }
+    else if (enemy.aiPattern === 'blood_boss') {
+      const state = enemy.dashState || 'reposition';
+      const stateStartTime = enemy.lastDashTime || currentTime;
+      const isEnragedPhase = enemy.hp <= (enemy.maxHp * 0.5);
+
+      if (isEnragedPhase && !enemy.isEnraged && state !== 'enraged_transition') {
+        updateEnemy(enemy.id, { dashState: 'enraged_transition', lastDashTime: currentTime, isEnraged: true });
+      }
+
+      if (state === 'enraged_transition') {
+        targetVx = 0; targetVy = 0;
+        if (currentTime - stateStartTime > 2000) updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+      } 
+      else if (state === 'reposition') {
+        // Truy đuổi cực gắt
+        targetVx = (dx / dist) * (isEnragedPhase ? 3.5 : 2.5);
+        targetVy = (dy / dist) * (isEnragedPhase ? 3.5 : 2.5);
+
+        if (dist <= enemy.radius + player.radius + 20) {
+          const lastAttackTime = enemy.lastAttackTime || 0;
+          if (currentTime - lastAttackTime >= 800) {
+            updateEnemy(enemy.id, { lastAttackTime: currentTime, hp: Math.min(enemy.maxHp, enemy.hp + enemy.damage!) }); // Lifesteal
+            dealDamageToPlayer(enemy.damage!, player, currentTime, undefined, enemy.x, enemy.y);
+          }
+        }
+
+        if (currentTime - stateStartTime > 2000) {
+          const rand = Math.random();
+          if (rand < 0.4) updateEnemy(enemy.id, { dashState: 'blood_laser', lastDashTime: currentTime });
+          else if (rand < 0.8) updateEnemy(enemy.id, { dashState: 'dash_warning', lastDashTime: currentTime, dashTargetX: dx/dist, dashTargetY: dy/dist });
+          else if (isEnragedPhase) updateEnemy(enemy.id, { dashState: 'blizzard', lastDashTime: currentTime }); // Xài ké skill diện rộng nhưng đổi màu
+        }
+      }
+      else if (state === 'dash_warning') {
+        targetVx = 0; targetVy = 0;
+        if (currentTime - stateStartTime > 500) updateEnemy(enemy.id, { dashState: 'lifesteal_dash', lastDashTime: currentTime });
+      }
+      else if (state === 'lifesteal_dash') {
+        targetVx = (enemy.dashTargetX || 0) * 10;
+        targetVy = (enemy.dashTargetY || 0) * 10;
+        if (dist <= enemy.radius + player.radius + 20) {
+          const lastAttackTime = enemy.lastAttackTime || 0;
+          if (currentTime - lastAttackTime >= 400) {
+            updateEnemy(enemy.id, { lastAttackTime: currentTime, hp: Math.min(enemy.maxHp, enemy.hp + enemy.damage!*2) });
+            dealDamageToPlayer(enemy.damage!*1.5, player, currentTime, undefined, enemy.x, enemy.y);
+          }
+        }
+        if (currentTime - stateStartTime > 400) updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+      }
+      else if (state === 'blood_laser') {
+        targetVx = 0; targetVy = 0;
+        const lastAIShootTime = enemy.lastAIShootTime || 0;
+        if (currentTime - lastAIShootTime > 100) {
+          updateEnemy(enemy.id, { lastAIShootTime: currentTime });
+          const aimAngle = Math.atan2(dy, dx);
+          // Quạt laser
+          const offset = Math.sin(currentTime/150) * 0.5;
+          addProjectile({
+            id: `blood_laser_${Date.now()}_${enemy.id}`, owner: 'enemy',
+            x: enemy.x, y: enemy.y,
+            vx: Math.cos(aimAngle + offset) * 12, vy: Math.sin(aimAngle + offset) * 12,
+            radius: 8, damage: enemy.damage!, color: '#9f1239', lifespan: 1000, createdAt: currentTime
+          });
+        }
+        if (currentTime - stateStartTime > 1500) updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+      }
+      else if (state === 'blizzard') {
+        targetVx = 0; targetVy = 0;
+        const lastAIShootTime = enemy.lastAIShootTime || 0;
+        if (currentTime - lastAIShootTime > 200) {
+          updateEnemy(enemy.id, { lastAIShootTime: currentTime });
+          addProjectile({
+            id: `blood_pool_${Date.now()}_${enemy.id}`, owner: 'enemy',
+            x: enemy.x + (Math.random()-0.5)*500, y: enemy.y + (Math.random()-0.5)*500,
+            vx: 0, vy: 0, radius: 50, damage: enemy.damage!, color: '#be123c', lifespan: 2000, createdAt: currentTime
+          });
+        }
+        if (currentTime - stateStartTime > 2000) updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime });
+      }
+      else { updateEnemy(enemy.id, { dashState: 'reposition', lastDashTime: currentTime }); }
+    }
     else if (enemy.aiPattern === 'teleport_attack') {
       // OÁN LINH MÁU: Dịch chuyển tức thời ra sau lưng Player
       const state = enemy.dashState || 'chase';

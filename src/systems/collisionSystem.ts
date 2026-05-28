@@ -18,7 +18,8 @@ export function runCollisionSystem() {
     relicPickups, removeRelicPickup,
     spikeTraps,
     portal, setCameraShake,
-    addGoldPickup, addHealthPickup
+    addGoldPickup, addHealthPickup,
+    activeBossInstance
   } = useEntityStore.getState();
 
   const { addGold, addScore, setPhase } = useGameStore.getState();
@@ -207,8 +208,59 @@ export function runCollisionSystem() {
 
     // 1. Kiểm tra va chạm đạn của Player
     if (isPlayerBullet) {
-      // Đạn Player trúng kẻ địch
-      for (const enemy of enemies) {
+      // 1.1 Kiểm tra va chạm đạn của Player trúng Siêu Boss
+      if (activeBossInstance && activeBossInstance.hp > 0 && activeBossInstance.state !== 'death') {
+        const hb = activeBossInstance.getHitboxes().bodyBox;
+        const closestX = Math.max(hb.x, Math.min(proj.x, hb.x + hb.width));
+        const closestY = Math.max(hb.y, Math.min(proj.y, hb.y + hb.height));
+        const distanceX = proj.x - closestX;
+        const distanceY = proj.y - closestY;
+        const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+
+        if (distanceSquared < (proj.radius * proj.radius)) {
+           if (proj.piercing && proj.piercedEntities?.includes('boss_active')) {
+             // do nothing
+           } else {
+             hit = true;
+             const isCrit = proj.isCrit !== undefined ? proj.isCrit : Math.random() < 0.1;
+             let finalDmg = isCrit ? Math.floor(proj.damage * 1.5) : proj.damage;
+             if (player.relics?.includes('cursed_blood_ring')) {
+               finalDmg = Math.floor(finalDmg * 1.5);
+             }
+             activeBossInstance.takeDamage(finalDmg);
+             useGameStore.getState().triggerHitStop(isCrit ? 60 : 30);
+             addDamageNumber({
+               id: `boss_proj_dmg_${Date.now()}_${Math.random()}`,
+               x: proj.x, y: proj.y - 15,
+               value: finalDmg,
+               color: isCrit ? '#f97316' : '#ffffff',
+               isCrit,
+               createdAt: currentTime,
+               lifespan: 600
+             });
+             for (let k = 0; k < 6; k++) {
+               addParticle({
+                 id: `boss_hit_spark_${Date.now()}_${k}`,
+                 x: proj.x, y: proj.y,
+                 vx: -proj.vx * 0.2 + (Math.random() - 0.5) * 3,
+                 vy: -proj.vy * 0.2 + (Math.random() - 0.5) * 3,
+                 radius: 2 + Math.random() * 2,
+                 color: proj.color,
+                 alpha: 0.8, decay: 0.06, createdAt: currentTime, lifespan: 200
+               });
+             }
+             if (proj.piercing) {
+               if (!proj.piercedEntities) proj.piercedEntities = [];
+               proj.piercedEntities.push('boss_active');
+               hit = false;
+             }
+           }
+        }
+      }
+
+      if (!hit) {
+        // Đạn Player trúng kẻ địch
+        for (const enemy of enemies) {
         if (enemy.hp <= 0) continue;
         const dx = proj.x - enemy.x;
         const dy = proj.y - enemy.y;
@@ -461,6 +513,7 @@ export function runCollisionSystem() {
           }
         }
       }
+      } // Đóng if (!hit)
 
       if (!hit) {
         // Đạn Player trúng thùng gỗ
@@ -956,15 +1009,20 @@ export function runCollisionSystem() {
     }
   });
 
-  // --- VA CHẠM DỊCH CHUYỂN QUA CỔNG PORTAL CHIẾN THẮNG ---
+  // --- VA CHẠM DỊCH CHUYỂN QUA CỔNG PORTAL CHIẾN THẮNG/CHUYỂN TẦNG ---
   if (portal && portal.active) {
     const dx = player.x - portal.x;
     const dy = player.y - portal.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist <= player.radius + portal.radius) {
-      // Dịch chuyển thắng game!
-      setPhase('victory');
+      // Dịch chuyển thắng game hoặc qua tầng
+      const currentFloor = useGameStore.getState().currentFloor;
+      if (currentFloor < 5) {
+        setPhase('next_floor');
+      } else {
+        setPhase('victory');
+      }
     }
   }
   // --- KIỂM TRA VA CHẠM VỚI BẪY GAI (SPIKE TRAPS) ---
@@ -1046,4 +1104,63 @@ export function runCollisionSystem() {
       }
     });
   }
+
+  // --- VA CHẠM CỦA NGƯỜI CHƠI VỚI BOSS LỚN ---
+  if (activeBossInstance && activeBossInstance.hp > 0 && activeBossInstance.state !== 'death') {
+    const hb = activeBossInstance.getHitboxes().bodyBox;
+    const closestX = Math.max(hb.x, Math.min(player.x, hb.x + hb.width));
+    const closestY = Math.max(hb.y, Math.min(player.y, hb.y + hb.height));
+    const distanceX = player.x - closestX;
+    const distanceY = player.y - closestY;
+    const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+
+    if (distanceSquared < (player.radius * player.radius)) {
+      const isInvincible = player.hitStopUntil && currentTime < player.hitStopUntil;
+      if (!isInvincible) {
+        const finalDmg = activeBossInstance.damage || 50;
+        let shield = player.shield || 0;
+        let hp = player.hp;
+        let nextShield = shield;
+        let nextHp = hp;
+        let realDmg = finalDmg;
+
+        if (shield > 0) {
+          if (shield >= realDmg) {
+            nextShield = shield - realDmg;
+            realDmg = 0;
+          } else {
+            realDmg -= shield;
+            nextShield = 0;
+          }
+        }
+        if (realDmg > 0) {
+          nextHp = Math.max(0, hp - realDmg);
+        }
+
+        const pushAngle = Math.atan2(player.y - (hb.y + hb.height/2), player.x - (hb.x + hb.width/2));
+        updatePlayer({
+          hp: nextHp,
+          shield: nextShield,
+          knockbackVx: Math.cos(pushAngle) * 15,
+          knockbackVy: Math.sin(pushAngle) * 15,
+          hitStopUntil: currentTime + 500,
+          lastHitTime: currentTime,
+          ...({ hitFlashActive: true, hitFlashStart: currentTime } as any)
+        });
+
+        addDamageNumber({
+          id: `player_boss_hit_${Date.now()}`,
+          x: player.x,
+          y: player.y - 15,
+          value: finalDmg,
+          color: shield > 0 ? '#94a3b8' : '#ef4444',
+          isCrit: false,
+          createdAt: currentTime,
+          lifespan: 600
+        });
+        setCameraShake(15);
+      }
+    }
+  }
+
 }

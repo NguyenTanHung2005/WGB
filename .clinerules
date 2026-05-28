@@ -1,0 +1,348 @@
+# 🎮 Game Development Skill — Web Platform (ReactJS / TypeScript / Canvas - Soul Knight Style)
+
+Skill này là kim chỉ nam để Agent thực thi một dự án game Action Roguelike góc nhìn từ trên xuống (Top-down Shooter/Melee), có yếu tố đổi vũ khí, nhiều lớp nhân vật, map mê cung nhiều phòng và các sự kiện trong phòng.
+
+**Nguyên tắc bất di bất dịch:**
+- Không bao giờ viết code trước khi có GDD được xác nhận.
+- Không bao giờ lược bỏ logic cũ khi bổ sung tính năng mới.
+- Mọi logic game (state, collision, AI, dungeon generation) phải tách hoàn toàn khỏi UI component.
+
+---
+
+## GIAI ĐOẠN 1 — GDD: Thiết kế Tài liệu Game (Game Design Document)
+
+**Mục tiêu:** Định hình linh hồn của game trước khi viết bất kỳ dòng code nào.
+
+Hỏi người dùng hoặc tự xác định các thông tin sau. Xuất ra một bản GDD hoàn chỉnh dưới dạng Markdown trước khi chuyển sang Giai đoạn 2.
+
+### 1.1 — Cấu trúc GDD cần xuất ra cho Game Soul Knight Style
+
+```markdown
+# GDD: [Tên Game]
+
+## 1. Tổng quan
+- Thể loại: Top-down Action Roguelike (phong cách Soul Knight)
+- Mô tả 1 câu: ...
+- Đối tượng người chơi: ...
+
+## 2. Core Loop
+[Di chuyển/Né tránh → Tấn công/Dùng Skill → Diệt quái dọn Room → Đổi/Nâng cấp vũ khí → Sang Room mới → Diệt Boss → Thắng/Thua]
+
+## 3. Các Lớp Nhân Vật (Character Classes)
+Mô tả các class (ví dụ: Knight, Mage, Rogue, Alchemist) kèm chỉ số cơ bản và Kỹ năng đặc biệt (Skill).
+
+## 4. Hệ thống Vũ khí (Weapons & Weapon Switching)
+- Cơ chế đổi vũ khí (đổi giữa 2-3 vũ khí mang theo).
+- Phân loại vũ khí: Ranged (súng bắn đạn tiêu hao năng lượng/mana), Melee (cận chiến, không tốn năng lượng), Magic (gây hiệu ứng diện rộng/tốn nhiều mana).
+
+## 5. Mê cung & Sự kiện trong Room (Dungeon Maze & Room Events)
+- Cấu trúc bản đồ: Lưới các phòng (Grid of Rooms, ví dụ 3x3 hoặc 4x4) kết nối với nhau bằng cửa/hành lang.
+- Các loại Room: Start Room, Combat Room, Chest Room (Rương báu), Shop Room, Boss Room.
+- Các Event trong Room:
+  - Wave chiến đấu: Cửa đóng lại, quái xuất hiện theo wave, tiêu diệt hết cửa mới mở.
+  - Event Cột buff (Shrine): Tế đàn nhận buff ngẫu nhiên (hoặc đánh đổi máu lấy sức mạnh).
+  - Cạm bẫy (Traps): Gai nhọn, tượng bắn lửa theo chu kỳ.
+
+## 6. Thực thể (Entities) & Va chạm (Collision)
+- Người chơi (Player): HP, Shield (Giáp tự hồi), Mana (Năng lượng dùng súng/phép), Speed.
+- Kẻ địch (Enemies): HP, Speed, AI Pattern (Đuổi theo, đứng xa bắn, nhảy xồ vào).
+- Đạn (Projectiles): Tọa độ X/Y, Vector hướng, Sát thương, Tag (Của player hay enemy).
+- Chướng ngại vật (Obstacles/Walls): Thùng gỗ phá hủy được, cột đá cản đường cản đạn.
+
+## 7. Tech Stack
+- Framework: ReactJS + TypeScript
+- State: Zustand (Headless — lưu trữ tọa độ, trạng thái thực thể, phòng)
+- Render: HTML5 Canvas (tốc độ cao, vẽ mượt mà góc nhìn top-down)
+- Game Loop: requestAnimationFrame (target 60 FPS)
+- Build: Vite
+
+## 8. Điều kiện thắng / thua
+- Thắng: Tiêu diệt Boss ở phòng cuối cùng.
+- Thua: Player hết HP (về 0).
+```
+
+---
+
+## GIAI ĐOẠN 2 — PROTOTYPE: Bản mẫu Gray-box
+
+**Mục tiêu:** Kiểm chứng cảm giác di chuyển, bắn đạn, va chạm và đổi vũ khí có vui không — chưa cần đồ họa đẹp.
+
+### 2.1 — Nguyên tắc Gray-boxing
+- Player: Hình tròn/hình vuông màu xanh dương, hướng nhìn xoay theo con trỏ chuột.
+- Kẻ địch: Hình tròn màu đỏ.
+- Vật cản/Tường: Các khối màu xám.
+- Đạn: Các chấm nhỏ màu vàng (của player) hoặc màu đỏ (của enemy).
+- Chỉ implement đúng một vòng lặp: **Input (WASD + Mouse) → Update State (Vị trí, Đạn, Va chạm tường) → Render (Canvas)**.
+
+### 2.2 — Checklist Prototype tối thiểu
+
+- [ ] Di chuyển Player mượt mà bằng WASD, giới hạn bởi tường của Room hiện tại.
+- [ ] Xoay hướng bắn và bắn đạn về phía con trỏ chuột (Click chuột để bắn).
+- [ ] Chuyển đổi linh hoạt giữa ít nhất 2 vũ khí (ví dụ: Phím Q hoặc lăn chuột).
+- [ ] Kẻ địch xuất hiện, tự di chuyển hướng về Player (AI đơn giản).
+- [ ] Va chạm tròn-tròn (Player-Enemy), tròn-hộp (Đạn-Tường, Đạn-Enemy). HP giảm và Enemy biến mất khi hết máu.
+- [ ] Cửa phòng đóng khi quái xuất hiện, mở ra khi quái chết hết.
+
+---
+
+## GIAI ĐOẠN 3 — ARCHITECTURE: Kiến trúc Hệ thống
+
+**Mục tiêu:** Xây dựng cấu trúc modular để dễ dàng thêm vũ khí mới, class mới và các event mới.
+
+### 3.1 — Cấu trúc thư mục chuẩn
+
+```
+src/
+├── store/                  # State Management (Zustand — Headless)
+│   ├── gameStore.ts        # Trạng thái tổng (Phase, Room hiện tại, Mana, Cửa phòng)
+│   ├── entityStore.ts      # Quản lý Player, Enemies, Projectiles, Items
+│   └── mapStore.ts         # Lưu sơ đồ maze các phòng, trạng thái từng phòng
+├── systems/                # Pure logic cập nhật game theo mỗi tick (KHÔNG import React)
+│   ├── movementSystem.ts   # Di chuyển thực thể, va chạm với tường/vật cản
+│   ├── combatSystem.ts     # Bắn đạn, vung kiếm, cooldown vũ khí, đổi vũ khí
+│   ├── aiSystem.ts         # AI kẻ địch (tìm đường hướng tới player, bắn đạn theo chu kỳ)
+│   ├── roomSystem.ts       # Quản lý kích hoạt event khi player vào phòng mới
+│   └── collisionSystem.ts  # Kiểm tra va chạm đạn-thực thể, thực thể-vật cản
+├── gameLoop/
+│   └── useGameLoop.ts      # requestAnimationFrame hook chạy các systems
+├── components/             # React UI
+│   ├── GameCanvas.tsx      # Nơi vẽ Canvas chính
+│   ├── HUD.tsx             # Thanh HP, Giáp (Shield), Mana, Vũ khí đang dùng, Kỹ năng
+│   ├── MenuScreen.tsx      # Chọn nhân vật, xem hướng dẫn
+│   └── GameOverScreen.tsx  # Kết quả thắng/thua
+├── data/                   # Dữ liệu tĩnh cấu hình game
+│   ├── classes.ts          # Định nghĩa Knight, Mage, Rogue, v.v.
+│   ├── weapons.ts          # Định nghĩa Súng lục, Kiếm ánh sáng, Gậy phép
+│   └── enemies.ts          # Chỉ số các loại quái
+└── types/
+    └── interfaces.ts       # Định nghĩa các type TypeScript
+```
+
+### 3.2 — TypeScript Interfaces cốt lõi (BẮT BUỘC tuân thủ)
+
+```typescript
+// --- WEAPON ---
+export type WeaponType = 'ranged' | 'melee' | 'magic';
+
+export interface Weapon {
+  id: string;
+  name: string;
+  type: WeaponType;
+  damage: number;
+  fireRate: number;       // ms giữa 2 lần bắn/chém
+  energyCost: number;     // Mana tiêu hao mỗi lần bắn
+  projectileSpeed?: number; // Cho súng
+  range?: number;         // Cho melee hoặc giới hạn tầm đạn
+  color?: string;         // Vẽ tạm
+}
+
+// --- CHARACTER CLASS ---
+export interface CharacterClass {
+  id: string;
+  name: string;
+  maxHp: number;
+  maxShield: number;
+  maxMana: number;
+  speed: number;
+  skillName: string;
+  skillCooldown: number;  // ms
+  skillDescription: string;
+}
+
+// --- ENTITY ---
+export type EntityType = 'player' | 'enemy' | 'boss';
+export type AIPattern = 'chase' | 'shoot' | 'charge';
+
+export interface Entity {
+  id: string;
+  type: EntityType;
+  x: number;
+  y: number;
+  radius: number;
+  vx: number;
+  vy: number;
+  hp: number;
+  maxHp: number;
+  shield?: number;        // Chỉ player mới có
+  maxShield?: number;
+  mana?: number;          // Chỉ player mới có
+  maxMana?: number;
+  speed: number;
+  angle: number;          // Hướng nhìn (radian)
+  activeWeaponIndex?: number;
+  weapons?: Weapon[];     // Chỉ player mang nhiều vũ khí
+  lastAttackTime?: number; // timestamp ms
+  lastSkillUsedTime?: number; // timestamp ms
+  skillActiveUntil?: number;  // timestamp ms khi skill hết hiệu lực
+  classId?: string;       // Chỉ player
+  aiPattern?: AIPattern;  // Chỉ enemy
+  lastAIShootTime?: number; // Cho quái bắn xa
+  damage?: number;        // Chỉ enemy/boss mới có, hoặc sát thương va chạm
+  color?: string;         // Vẽ tạm hoặc màu quái
+  statusEffects: string[];
+}
+
+// --- PROJECTILE ---
+export interface Projectile {
+  id: string;
+  owner: 'player' | 'enemy';
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  damage: number;
+  color: string;
+  lifespan: number;       // Thời gian tồn tại (ms)
+  createdAt: number;
+}
+
+// --- ROOM ---
+export type RoomType = 'start' | 'combat' | 'chest' | 'shop' | 'boss';
+export type RoomState = 'unvisited' | 'active' | 'combat_lock' | 'cleared';
+
+export interface RoomGates {
+  north: boolean;       // Có cửa hướng Bắc không
+  south: boolean;
+  east: boolean;
+  west: boolean;
+}
+
+export interface Room {
+  id: string;
+  gridX: number;          // Vị trí trong lưới maze (cột: 0-2)
+  gridY: number;          // Vị trí trong lưới maze (dòng: 0-2)
+  type: RoomType;
+  state: RoomState;
+  width: number;          // Kích thước trong pixel
+  height: number;
+  gates: RoomGates;
+  enemiesSpawned: boolean;
+  waveCount: number;      // Đã spawn bao nhiêu wave
+  maxWaves: number;       // Tổng số wave trong phòng này
+}
+
+// --- MAP & MAZE STATE ---
+export interface DungeonMap {
+  rooms: Room[];
+  currentRoomId: string;
+}
+
+// --- VFX / PARTICLE ---
+export interface VFXParticle {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  color: string;
+  alpha: number;
+  decay: number;          // Tốc độ giảm alpha mỗi frame
+  createdAt: number;
+  lifespan: number;
+}
+
+export interface DamageNumber {
+  id: string;
+  x: number;
+  y: number;
+  value: number;
+  color: string;
+  isCrit: boolean;
+  createdAt: number;
+  lifespan: number;
+}
+```
+
+### 3.3 — Game Loop chuẩn
+
+```typescript
+// gameLoop/useGameLoop.ts
+import { useEffect, useRef } from 'react';
+import { useGameStore } from '../store/gameStore';
+import { runMovementSystem } from '../systems/movementSystem';
+import { runCombatSystem } from '../systems/combatSystem';
+import { runAISystem } from '../systems/aiSystem';
+import { runCollisionSystem } from '../systems/collisionSystem';
+import { runRoomSystem } from '../systems/roomSystem';
+import { runVFXSystem } from '../systems/vfxSystem';
+
+const TICK_MS = 1000 / 60; // 60 FPS (~16.67ms)
+
+export function useGameLoop() {
+  const rafRef = useRef<number | undefined>(undefined);
+  const lastTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    const tick = (timestamp: number) => {
+      if (lastTimeRef.current === 0) lastTimeRef.current = timestamp;
+      const delta = timestamp - lastTimeRef.current;
+      
+      if (delta >= TICK_MS) {
+        // Giới hạn tối đa delta để tránh lỗi dịch chuyển xuyên tường khi lag
+        const clampedDelta = Math.min(delta, 100);
+        lastTimeRef.current = timestamp;
+        
+        const phase = useGameStore.getState().phase;
+        if (phase === 'playing') {
+          // Các hệ thống chạy tuần tự
+          runRoomSystem(clampedDelta);
+          runAISystem(clampedDelta);
+          runMovementSystem(clampedDelta);
+          runCollisionSystem();
+          runCombatSystem(clampedDelta);
+          runVFXSystem(clampedDelta);
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    
+    rafRef.current = requestAnimationFrame(tick);
+    
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
+}
+```
+
+---
+
+## GIAI ĐOẠN 4 — ASSETS: Sản xuất & Tích hợp Tài nguyên
+
+**Mục tiêu:** Tạo visual mang chất Pixel hoài cổ và SFX sinh động để người chơi hào hứng.
+
+- **Sprites nghệ thuật:** Vẽ nền gạch tối màu, các bức tường đá, rương gỗ mở/đóng, cổng dịch chuyển (Portal).
+- **Vũ khí & Đạn:** Vẽ đường chém kiếm hình vòng cung, tia đạn bay, hạt khói/phép thuật phía sau đạn.
+- **Hiệu ứng âm thanh:**
+  - SFX chém kiếm (Melee swoosh)
+  - SFX bắn súng lục/phép (Laser/Shoot sound)
+  - SFX khi đổi vũ khí (Click cơ học)
+  - Nhạc nền ngục tối dồn dập (Dungeon BGM)
+
+---
+
+## GIAI ĐOẠN 5 — JUICE: Hiệu ứng & Game Feel (Rất Quan Trọng)
+
+- [ ] **Màn hình rung (Camera Shake):** Rung mạnh khi dùng skill mạnh hoặc khi Player nhận sát thương lớn.
+- [ ] **Giật lùi khi bắn (Weapon Recoil):** Đẩy nhẹ Player lùi lại một chút khi bắn súng hạng nặng.
+- [ ] **Hiệu ứng trúng đòn (Hit Flash & Hit Stop):** Kẻ địch nhấp nháy trắng khi trúng đạn; game đóng băng 50ms khi đòn chí mạng nổ.
+- [ ] **Hạt tia lửa (Particles):** Các mảnh gỗ văng ra khi đập vỡ hòm, vệt sáng lấp lánh khi Player kích hoạt Skill.
+- [ ] **Thanh Giáp (Shield) hồi phục:** Tạo hiệu ứng lóe sáng nhỏ quanh Player khi Shield bắt đầu tự động hồi lại sau một thời gian không nhận sát thương.
+
+---
+
+## GIAI ĐOẠN 6 — BALANCING: Cân bằng Game
+
+- **Cơ chế Shield:** Shield nhận sát thương thay HP. Khi hết Shield, sát thương trừ vào HP. Nếu không nhận sát thương trong 3-4 giây, Shield tự hồi phục hoàn toàn. Điều này thúc đẩy lối chơi năng động (hit and run).
+- **Quản lý Năng lượng (Mana):** Sử dụng các vũ khí mạnh sẽ tốn Mana. Tiêu diệt quái vật hoặc đập hòm gỗ rơi ra bình Mana để hồi phục. Vũ khí cận chiến (Kiếm, Chùy) không tốn Mana nhưng buộc phải áp sát nguy hiểm.
+- **Tốc độ di chuyển:** Rogue di chuyển nhanh, hồi skill nhanh nhưng máu giấy. Knight cân bằng. Mage chậm chạp nhưng skill hủy diệt diện rộng.
+
+---
+
+## GIAI ĐOẠN 7 — DEPLOYMENT: Build & Phát hành
+
+Sử dụng Vite để đóng gói game thành bản web tĩnh nhẹ gọn (`dist/`), dễ dàng upload lên GitHub Pages, Vercel, Netlify hoặc Itch.io để trải nghiệm ngay trên trình duyệt máy tính hoặc điện thoại di động.
